@@ -1,4 +1,6 @@
 .*.sw*
 a.out
 main
-
+common
+glm
+glxw
