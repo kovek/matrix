@@ -1,0 +1,44 @@
+#include <list>
+#include <cmath>
+
+struct Particle {
+	public:
+		long double mass;
+		long double mass_ev;
+		long double charge;
+		double radius;
+		double magnetic_moment;
+		bool spin;
+
+		std::vector<long double> position;
+		std::vector<long double> velocity;
+		mutable std::vector<long double> acceleration;
+
+		std::list< std::vector<long double> > position_back_log;
+		std::vector<long double> last_velocity;
+		std::vector<long double> last_acceleration;
+};
+
+struct Electron: public Particle {
+	public:
+		Electron(){
+			mass_ev = 0.510998928l; // in MeV/c^2
+			mass = 9.11l*pow(10,-31); // in kg
+			charge = -1.602176565l*pow(10,-19); // in Coulombs
+			radius = 0; // Doesn't matter
+			magnetic_moment = -1.00115965218076; // in /mu/B
+			spin = true;
+		}
+};
+
+struct Proton: public Particle {
+	public:
+		Proton(){
+			mass_ev = 938.272046; // in MeV/c^2
+			mass = 1.672621777 * pow(10,-27); // in kg
+			charge = -1.602176565*pow(10,-19); // in Coulombs
+			radius = 0; // Doesn't matter
+			magnetic_moment = 0.001521032210; // in /mu/B
+			spin = true;
+		}
+};
