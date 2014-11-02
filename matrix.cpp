@@ -17,7 +17,7 @@
 
 
 const long double k_e = 8.9875517873681764*pow(10,9);
-const long double delta_t = 1.52l*pow(10, -16)/100l;
+const long double delta_t = 1.52l*pow(10, -16)/80l;
 
 extern float viewMatrix[16];
 
@@ -337,7 +337,7 @@ int main(){
 		for(uint j = 0; j < 4; j++){
 			for(uint k = 0; k < 4; k++){
 				all_particles.push_back(new Proton());
-				all_particles[16*i + 4*j + k]->position = std::vector<long double>{j*r_not, i*r_not, k*r_not};
+				all_particles[16*i + 4*j + k]->position = std::vector<long double>{j*5*r_not, i*5*r_not, k*5*r_not};
 			}
 		}
 	}
@@ -345,8 +345,8 @@ int main(){
 
 	all_particles.push_back(new Electron());
 
-	all_particles[64]->position = std::vector<long double>{2.2*r_not, 2.35*r_not, 2.2*r_not};
-	all_particles[64]->velocity = std::vector<long double>{0, 0, 0};
+	all_particles[64]->position = std::vector<long double>{2.5*r_not, 2.35*r_not, 2.2*r_not};
+	all_particles[64]->velocity = std::vector<long double>{0, 0.1*v_not, 0};
 	all_particles[64]->mass = 1.672621777 * pow(10,-27) * pow(10,-3); // in kg
 
 	for (uint i = 0; i < all_particles.size(); i++ ){ // calculate new values
