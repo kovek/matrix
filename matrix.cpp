@@ -17,7 +17,7 @@
 
 
 const long double k_e = 8.9875517873681764*pow(10,9);
-const long double delta_t = 1.52l*pow(10, -16)/100l;
+const long double delta_t = 1.52l*pow(10, -16)/900l;
 
 extern float viewMatrix[16];
 
@@ -83,7 +83,7 @@ void compute_new_values() {
 		current->position[1] += current->velocity[1]*delta_t+0.5*current->acceleration[1]*delta_t*delta_t;
 		current->position[2] += current->velocity[2]*delta_t+0.5*current->acceleration[2]*delta_t*delta_t;
 		current->position_back_log.push_back( current->position );
-		if (current->position_back_log.size()>100){ current->position_back_log.pop_front(); }
+		if (current->position_back_log.size()>700){ current->position_back_log.pop_front(); }
 
 	}
 
@@ -331,23 +331,24 @@ int main(){
 
 	long double r_not = 5.29 * pow(10,-11);
 	long double v_not = 2.18805743462617 * pow(10,6);
-	v_not *= 0.6f;
+	v_not *= 1.3f;
 
-	for(uint i = 0; i < 4; i++){
-		for(uint j = 0; j < 4; j++){
-			for(uint k = 0; k < 4; k++){
-				all_particles.push_back(new Proton());
-				all_particles[16*i + 4*j + k]->position = std::vector<long double>{j*r_not, i*r_not, k*r_not};
-			}
-		}
-	}
-	std::cout << "Reached" << std::endl;
-
+	all_particles.push_back(new Proton());
+	all_particles.push_back(new Proton());
+	all_particles.push_back(new Electron());
 	all_particles.push_back(new Electron());
 
-	all_particles[64]->position = std::vector<long double>{2.2*r_not, 2.35*r_not, 2.2*r_not};
-	all_particles[64]->velocity = std::vector<long double>{0, 0, 0};
-	all_particles[64]->mass = 1.672621777 * pow(10,-27) * pow(10,-3); // in kg
+	all_particles[0]->position = std::vector<long double>{0.1*r_not, 0, 0};
+	all_particles[0]->velocity = std::vector<long double>{0, 0, 0};
+
+	all_particles[1]->position = std::vector<long double>{-0.1*r_not, 0, 0};
+	all_particles[1]->velocity = std::vector<long double>{0, 0, 0};
+
+	all_particles[2]->position = std::vector<long double>{r_not, 0, 0};
+	all_particles[2]->velocity = std::vector<long double>{0, -v_not, 0};
+
+	all_particles[3]->position = std::vector<long double>{-r_not, 0, 0};
+	all_particles[3]->velocity = std::vector<long double>{0, v_not, 0};
 
 	for (uint i = 0; i < all_particles.size(); i++ ){ // calculate new values
 
