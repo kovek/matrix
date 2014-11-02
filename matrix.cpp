@@ -17,7 +17,7 @@
 
 
 const long double k_e = 8.9875517873681764*pow(10,9);
-const long double delta_t = 1.52l*pow(10, -16)/900l;
+const long double delta_t = 1.52l*pow(10, -16)/100l;
 
 extern float viewMatrix[16];
 
@@ -83,7 +83,7 @@ void compute_new_values() {
 		current->position[1] += current->velocity[1]*delta_t+0.5*current->acceleration[1]*delta_t*delta_t;
 		current->position[2] += current->velocity[2]*delta_t+0.5*current->acceleration[2]*delta_t*delta_t;
 		current->position_back_log.push_back( current->position );
-		if (current->position_back_log.size()>700){ current->position_back_log.pop_front(); }
+		if (current->position_back_log.size()>100){ current->position_back_log.pop_front(); }
 
 	}
 
@@ -91,6 +91,7 @@ void compute_new_values() {
 		//if (i==1){ continue; } // skip the proton, for now
 
 		Particle* current = all_particles[i];
+		std::vector<long double> sum_of_all_forces = std::vector<long double>{0,0,0};
 
 		for (uint j = 0; j < all_particles.size(); j++ ){ // calculate new acceleration values
 			if (i==j){ continue; }
@@ -105,20 +106,22 @@ void compute_new_values() {
 				+ pow(current->position[1]-other->position[1], 2)
 				+ pow(current->position[2]-other->position[2], 2) );
 
-			long double cl_scalar = - k_e * current->charge * other->charge / dist / dist / current->mass / dist;
+			long double cl_scalar = - k_e * current->charge * other->charge / dist / dist / dist;
 
 			std::vector<long double> delta_vector = std::vector<long double>{
 				other->position[0]-current->position[0],
 				other->position[1]-current->position[1],
 				other->position[2]-current->position[2]};
 
-			std::vector<long double> new_acceleration = std::vector<long double>{
+			std::vector<long double> new_force = std::vector<long double>{
 				cl_scalar*delta_vector[0],
 				cl_scalar*delta_vector[1],
 				cl_scalar*delta_vector[2]};
 
-			current->last_acceleration = current->acceleration;
-			current->acceleration = new_acceleration;
+			sum_of_all_forces[0] += new_force[0];
+			sum_of_all_forces[1] += new_force[1];
+			sum_of_all_forces[2] += new_force[2];
+
 
 			/*
 			std::cout << all_particles[i]->position[0] << " "
@@ -127,6 +130,14 @@ void compute_new_values() {
 			 << std::endl;
 			 */
 		}
+		std::vector<long double> new_acceleration = std::vector<long double>{
+			sum_of_all_forces[0]/current->mass,
+			sum_of_all_forces[1]/current->mass,
+			sum_of_all_forces[2]/current->mass};
+
+
+		current->last_acceleration = current->acceleration;
+		current->acceleration = new_acceleration;
 	}
 	for (uint i = 0; i < all_particles.size(); i++ ){
 		Particle* current = all_particles[i];
@@ -322,26 +333,21 @@ int main(){
 	long double v_not = 2.18805743462617 * pow(10,6);
 	v_not *= 0.6f;
 
-	all_particles.push_back( new Proton() );
-	all_particles.push_back( new Electron() );
-	all_particles.push_back( new Electron() );
-	//all_particles.push_back( new Electron() );
+	for(uint i = 0; i < 4; i++){
+		for(uint j = 0; j < 4; j++){
+			for(uint k = 0; k < 4; k++){
+				all_particles.push_back(new Proton());
+				all_particles[16*i + 4*j + k]->position = std::vector<long double>{j*r_not, i*r_not, k*r_not};
+			}
+		}
+	}
+	std::cout << "Reached" << std::endl;
 
+	all_particles.push_back(new Electron());
 
-	//set initial position
-	all_particles[0]->position = std::vector<long double>{0, 0.0, 0.0};
-	all_particles[0]->velocity = std::vector<long double>{0.0, 0.0, 0.0};
-
-	all_particles[1]->position = std::vector<long double>{0.0, -r_not, 0.0};
-	all_particles[1]->velocity = std::vector<long double>{v_not, 0, 0};
-
-	all_particles[2]->position = std::vector<long double>{0, r_not, 0.0};
-	all_particles[2]->velocity = std::vector<long double>{-v_not, 0.0, 0};
-
-	/*
-	all_particles[3]->position = std::vector<long double>{2*r_not, 0, 0.0};
-	all_particles[3]->velocity = std::vector<long double>{0.0, v_not, 0};
-	*/
+	all_particles[64]->position = std::vector<long double>{2.2*r_not, 2.35*r_not, 2.2*r_not};
+	all_particles[64]->velocity = std::vector<long double>{0, 0, 0};
+	all_particles[64]->mass = 1.672621777 * pow(10,-27) * pow(10,-3); // in kg
 
 	for (uint i = 0; i < all_particles.size(); i++ ){ // calculate new values
 

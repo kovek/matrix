@@ -10,8 +10,8 @@ struct Particle {
 		double magnetic_moment;
 		bool spin;
 
-		std::vector<long double> position;
-		std::vector<long double> velocity;
+		mutable std::vector<long double> position = std::vector<long double>{0.0, 0.0, 0.0};
+		mutable std::vector<long double> velocity = std::vector<long double>{0.0, 0.0, 0.0};
 		mutable std::vector<long double> acceleration = std::vector<long double>{0.0, 0.0, 0.0};
 
 		std::list< std::vector<long double> > position_back_log;
