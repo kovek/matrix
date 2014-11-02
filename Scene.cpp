@@ -455,6 +455,8 @@ GLuint trailBufferObject;
 GLuint tvaoObject;
 GLuint trailibuf;
 
+uint trail_counter;
+
 float t;
 
 float norm(glm::vec3 vec){
@@ -523,7 +525,7 @@ void Scene::draw()
 		glBindVertexArray(conevbo);
 		//glUniform3f(offsetUniform, all_particles[0]->position[0], all_particles[0]->position[1], all_particles[0]->position[2]);
 		glUniform3f(offsetUniform, 0, 0, 0);
-		glDrawElements(GL_TRIANGLES, coneSize, GL_UNSIGNED_SHORT, 0);
+		//glDrawElements(GL_TRIANGLES, coneSize, GL_UNSIGNED_SHORT, 0);
 
 		glUniformMatrix4fv(objMatrixUniform, 1, GL_FALSE, identityMatrix);
 	}
@@ -547,85 +549,113 @@ void Scene::draw()
 		glUniformMatrix4fv(objMatrixUniform, 1, GL_FALSE, identityMatrix);
 	}
 
-	glBindVertexArray(_vertexArrayObject);
 
-	glGenBuffers(1, &trailBufferObject);
-	glBindBuffer(GL_ARRAY_BUFFER, trailBufferObject);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(trail), trail, GL_STATIC_DRAW);
+	for(uint t = 0; t < all_particles.size(); t++) {
+		Particle * current = all_particles[t];
 
-	glGenBuffers(1, &trailibuf);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, trailibuf);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(traili), traili, GL_STATIC_DRAW);
+		glBindVertexArray(_vertexArrayObject);
 
-	/*
-	glGenVertexArrays(1, &tvaoObject);
-	glBindVertexArray(tvaoObject);
-	*/
+		glGenBuffers(1, &trailBufferObject);
+		glBindBuffer(GL_ARRAY_BUFFER, trailBufferObject);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(trail), trail, GL_STATIC_DRAW);
 
-	glEnableVertexAttribArray(0);
-	glEnableVertexAttribArray(1);
+		glGenBuffers(1, &trailibuf);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, trailibuf);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(traili), traili, GL_STATIC_DRAW);
 
-	size_t colorpos = sizeof(trail)/sizeof(float)/2;
+		/*
+		glGenVertexArrays(1, &tvaoObject);
+		glBindVertexArray(tvaoObject);
+		*/
 
-	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, 0);
-	glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 0, (void*) colorpos);
+		glEnableVertexAttribArray(0);
+		glEnableVertexAttribArray(1);
 
-	std::list< std::vector<long double> >* log = &(all_particles[0]->position_back_log);
-	std::list< std::vector<long double> >::iterator cur = log->begin();
-	std::list< std::vector<long double> >::iterator end = log->end();
+		size_t colorpos = sizeof(trail)/sizeof(float)/2;
 
-	uint skip_every_nth = 9;
-	uint i;
-	bool stop_iterating = false;
+		glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, 0);
+		glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 0, (void*) colorpos);
 
-	while (cur != end) { // draw particles
+		std::list< std::vector<long double> >* log = &(current->position_back_log);
+		std::list< std::vector<long double> >::iterator cur = log->begin();
+		std::list< std::vector<long double> >::iterator end = log->end();
 
-		glUniform3f(offsetUniform, (*cur)[0], (*cur)[1], (*cur)[2]);
-		//glDrawArrays(GL_TRIANGLES, 0, sizeof(trail)/sizeof(float)/2 );
+		uint skip_every_nth = 2;
+		uint i;
+		float j = log->size();
+		bool stop_iterating = false;
+		trail_counter++;
+		trail_counter = trail_counter % skip_every_nth;
 
-		int size;
-		glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
-
-		glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_SHORT, 0);
-
-
-		i = 0;
-		while(i!=skip_every_nth)
-		{
+		for(uint k = 0; k < 18; k++){
 			cur++;
-			i++;
-			if(cur == end){ stop_iterating = true; }
 		}
-		if (stop_iterating){ break; }
+
+
+		while (cur != end) { // draw particles
+			j -= (float)skip_every_nth;
+
+			//glUniform3f(offsetUniform, (*cur)[0]*pow(10,10), (*cur)[1]*pow(10,10), (*cur)[2]*pow(10,10));
+			glUniform3f(offsetUniform, 0, 0, 0);
+			//glDrawArrays(GL_TRIANGLES, 0, sizeof(trail)/sizeof(float)/2 );
+
+			float floats_array[16] = {0};
+			glm::mat4 mod = glm::mat4(1.0f);
+			mod = scale(mod, 5/j, 5/j, 5/j);
+			mod = move(mod, (*cur)[0]*pow(10,10), (*cur)[1]*pow(10,10), (*cur)[2]*pow(10,10));
+			passDataToArray(mod, floats_array);
+
+			glUniformMatrix4fv(objMatrixUniform, 1, GL_FALSE, floats_array);
+
+			int size;
+			glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
+
+			glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_SHORT, 0);
+
+
+			i = 0;
+			while(i!=skip_every_nth)
+			{
+				cur++;
+				i++;
+				if(cur == end){ stop_iterating = true; }
+			}
+			if (stop_iterating){ break; }
+		}
 	}
 
 
-	glUniform3f(offsetUniform, (float)all_particles[0]->position[0], (float)all_particles[0]->position[1], (float)all_particles[0]->position[2]);
+
+	for (uint k = 0; k < all_particles.size(); k++){
+		Particle* current = all_particles[k];
+
+		glUniform3f(offsetUniform, (float)current->position[0], (float)current->position[1], (float)current->position[2]);
 
 
-	size_t colorData = sizeof(vertexData) / 2;
-	glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject);
-	glEnableVertexAttribArray(0);
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, 0);
-	glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 0, (void*)colorData);
+		size_t colorData = sizeof(vertexData) / 2;
+		glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject);
+		glEnableVertexAttribArray(0);
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, 0);
+		glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 0, (void*)colorData);
 
 
-	glDrawArrays(GL_TRIANGLES, 0, sizeof(vertexData)/sizeof(float)/2/4 );
+		glDrawArrays(GL_TRIANGLES, 0, sizeof(vertexData)/sizeof(float)/2/4 );
 
-	glBindVertexArray(spherevbo);
+		glBindVertexArray(spherevbo);
 
 
-	float floats_array[16] = {0};
-	glm::mat4 mod = glm::mat4(1.0f);
-	mod = scale(mod, 1/7.0f, 1/7.0f, 1/7.0f);
-	passDataToArray(mod, floats_array);
+		float floats_array[16] = {0};
+		glm::mat4 mod = glm::mat4(1.0f);
+		mod = scale(mod, 1/7.0f, 1/7.0f, 1/7.0f);
+		passDataToArray(mod, floats_array);
 
-	glUniformMatrix4fv(objMatrixUniform, 1, GL_FALSE, floats_array);
+		glUniformMatrix4fv(objMatrixUniform, 1, GL_FALSE, floats_array);
 
-	glUniform3f(offsetUniform, (float)all_particles[0]->position[0]*pow(10,10), (float)all_particles[0]->position[1]*pow(10,10), (float)all_particles[0]->position[2]*pow(10,10));
-	glDrawElements(GL_TRIANGLES, sphereSize, GL_UNSIGNED_SHORT, 0);
-	glBindVertexArray(0);
+		glUniform3f(offsetUniform, (float)current->position[0]*7*pow(10,10), (float)current->position[1]*7*pow(10,10), (float)current->position[2]*7*pow(10,10));
+		glDrawElements(GL_TRIANGLES, sphereSize, GL_UNSIGNED_SHORT, 0);
+		glBindVertexArray(0);
+	}
 }
 
 void Scene::keyStateChanged(int key, int action)

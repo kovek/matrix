@@ -17,7 +17,7 @@
 
 
 const long double k_e = 8.9875517873681764*pow(10,9);
-const long double delta_t = 1.52l*pow(10, -16)/2500l;
+const long double delta_t = 1.52l*pow(10, -16)/900l;
 
 extern float viewMatrix[16];
 
@@ -76,8 +76,19 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 
 
 void compute_new_values() {
+	for (uint i = 0; i < all_particles.size(); i++ ){
+		Particle* current = all_particles[i];
+
+		current->position[0] += current->velocity[0]*delta_t+0.5*current->acceleration[0]*delta_t*delta_t;
+		current->position[1] += current->velocity[1]*delta_t+0.5*current->acceleration[1]*delta_t*delta_t;
+		current->position[2] += current->velocity[2]*delta_t+0.5*current->acceleration[2]*delta_t*delta_t;
+		current->position_back_log.push_back( current->position );
+		if (current->position_back_log.size()>700){ current->position_back_log.pop_front(); }
+
+	}
+
 	for (uint i = 0; i < all_particles.size(); i++ ){ // calculate new values
-		if (i==1){ continue; } // skip the proton, for now
+		//if (i==1){ continue; } // skip the proton, for now
 
 		Particle* current = all_particles[i];
 
@@ -94,8 +105,7 @@ void compute_new_values() {
 				+ pow(current->position[1]-other->position[1], 2)
 				+ pow(current->position[2]-other->position[2], 2) );
 
-			long double cl_scalar = k_e * current->charge * other->charge / dist / dist / current->mass / dist;
-			std::cout << cl_scalar << std::endl;
+			long double cl_scalar = - k_e * current->charge * other->charge / dist / dist / current->mass / dist;
 
 			std::vector<long double> delta_vector = std::vector<long double>{
 				other->position[0]-current->position[0],
@@ -107,30 +117,24 @@ void compute_new_values() {
 				cl_scalar*delta_vector[1],
 				cl_scalar*delta_vector[2]};
 
-			all_particles[i]->acceleration = new_acceleration;
+			current->last_acceleration = current->acceleration;
+			current->acceleration = new_acceleration;
 
+			/*
 			std::cout << all_particles[i]->position[0] << " "
 				<< all_particles[i]->position[1] << " "
 				<< all_particles[i]->position[2] << " "
 			 << std::endl;
+			 */
 		}
 	}
-
 	for (uint i = 0; i < all_particles.size(); i++ ){
 		Particle* current = all_particles[i];
-
-		current->position[0] += current->velocity[0]*delta_t;
-		current->position[1] += current->velocity[1]*delta_t;
-		current->position[2] += current->velocity[2]*delta_t;
-		current->position_back_log.push_back( current->position );
-		if (current->position_back_log.size()>100){ current->position_back_log.pop_front(); }
-
-		current->velocity[0] += current->acceleration[0]*delta_t;
-		current->velocity[1] += current->acceleration[1]*delta_t;
-		current->velocity[2] += current->acceleration[2]*delta_t;
-	/*
-	*/
+		current->velocity[0] += (current->acceleration[0]+current->last_acceleration[0])/2*delta_t;
+		current->velocity[1] += (current->acceleration[1]+current->last_acceleration[1])/2*delta_t;
+		current->velocity[2] += (current->acceleration[2]+current->last_acceleration[2])/2*delta_t;
 	}
+
 }
 
 /*
@@ -314,34 +318,77 @@ int openglmain(int argc, const char * argv[]){
 
 int main(){
 
+	long double r_not = 5.29 * pow(10,-11);
+	long double v_not = 2.18805743462617 * pow(10,6);
+	v_not *= 0.6f;
 
-	all_particles.push_back( new Electron() );
 	all_particles.push_back( new Proton() );
+	all_particles.push_back( new Electron() );
+	all_particles.push_back( new Electron() );
+	//all_particles.push_back( new Electron() );
 
 
 	//set initial position
-	all_particles[0]->position = std::vector<long double>{5.29*pow(10,-11), 0.0, 0.0};
-	all_particles[0]->velocity = std::vector<long double>{0.0, -2.19*pow(10,6), 0.0};
-	all_particles[0]->acceleration = std::vector<long double>{0.0, 0.0, 0.0};
+	all_particles[0]->position = std::vector<long double>{0, 0.0, 0.0};
+	all_particles[0]->velocity = std::vector<long double>{0.0, 0.0, 0.0};
 
-	all_particles[1]->position = std::vector<long double>{0.0, 0.0, 0.0};
-	all_particles[1]->velocity = std::vector<long double>{0.0, 0.0, 0.0};
-	all_particles[1]->acceleration = std::vector<long double>{0.0, 0.0, 0.0};
+	all_particles[1]->position = std::vector<long double>{0.0, -r_not, 0.0};
+	all_particles[1]->velocity = std::vector<long double>{v_not, 0, 0};
+
+	all_particles[2]->position = std::vector<long double>{0, r_not, 0.0};
+	all_particles[2]->velocity = std::vector<long double>{-v_not, 0.0, 0};
+
+	/*
+	all_particles[3]->position = std::vector<long double>{2*r_not, 0, 0.0};
+	all_particles[3]->velocity = std::vector<long double>{0.0, v_not, 0};
+	*/
+
+	for (uint i = 0; i < all_particles.size(); i++ ){ // calculate new values
+
+		Particle* current = all_particles[i];
+
+		for (uint j = 0; j < all_particles.size(); j++ ){ // calculate new acceleration values
+			if (i==j){ continue; }
+
+			Particle* other = all_particles[j];
+
+			// calculate
+			// all_particles[i]->next_position
+
+			long double dist = sqrt(
+				  pow(current->position[0]-other->position[0], 2)
+				+ pow(current->position[1]-other->position[1], 2)
+				+ pow(current->position[2]-other->position[2], 2) );
+
+			long double cl_scalar = - k_e * current->charge * other->charge / dist / dist / current->mass / dist;
+
+			std::vector<long double> delta_vector = std::vector<long double>{
+				other->position[0]-current->position[0],
+				other->position[1]-current->position[1],
+				other->position[2]-current->position[2]};
+
+			std::vector<long double> new_acceleration = std::vector<long double>{
+				cl_scalar*delta_vector[0],
+				cl_scalar*delta_vector[1],
+				cl_scalar*delta_vector[2]};
+
+			current->last_acceleration = current->acceleration;
+			current->acceleration = new_acceleration;
+
+			/*
+			std::cout << all_particles[i]->position[0] << " "
+				<< all_particles[i]->position[1] << " "
+				<< all_particles[i]->position[2] << " "
+			 << std::endl;
+			 */
+		}
+	}
 
 	// std::cout << delta_t << std::endl;
 
 	//return 0;
 
 	openglmain(0, NULL);
-
-	while(true) {
-		 std::cout << all_particles[0]->position[0]
-			 << " " << all_particles[0]->position[1]
-			 << " " << all_particles[0]->position[2]
-			 << std::endl;
-		 std::cout << all_particles[0]->acceleration[0] << " " << all_particles[0]->acceleration[1] << " " << all_particles[0]->acceleration[2] << std::endl;
-		//update_display();
-	}
 
 	return 0;
 }
