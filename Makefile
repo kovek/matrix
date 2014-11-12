@@ -11,13 +11,20 @@ test: shader.o
 shader.o:
 	g++ -c common/shader.cpp -o shader.o
 matrix:
-	g++ matrix.cpp Scene.cpp -o main -I /usr/local/include/ -I./ -lglfw3 -framework Cocoa -framework CoreVideo -lGLEW -lGLUT -framework OpenGL -framework IOKit -stdlib=libc++ -std=c++0x;
-	echo "done";
+	g++ matrix.cpp Scene.cpp -o main -I./ -lglfw3 -framework Cocoa -framework CoreVideo -framework OpenGL -framework IOKit -std=c++0x;
 	./main
+test_object: matrix.o Scene.o
+	g++ matrix.o Scene.o -o main -lglfw3 -framework Cocoa -framework CoreVideo -lGLEW -lGLUT -framework OpenGL -framework IOKit;
+matrix.o:
+	g++ -c matrix.cpp Scene.cpp -I /usr/local/include/ -I./ -lglfw3 -framework Cocoa -framework CoreVideo -lGLEW -lGLUT -framework OpenGL -framework IOKit -stdlib=libc++ -std=c++0x;
+Scene.o:
+	g++ -c Scene.cpp -I /usr/local/include/ -I./ -lglfw3 -framework Cocoa -framework CoreVideo -lGLEW -lGLUT -framework OpenGL -framework IOKit -stdlib=libc++ -std=c++0x;
+
+
 graph:
 	g++ write.cpp -lplplotcxxd -o graph
 	echo "done";
 	./graph
-.PHONY: step, draw, test
+.PHONY: step, draw, test, matrix.o, Scene.o
 
 
