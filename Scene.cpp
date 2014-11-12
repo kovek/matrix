@@ -16,10 +16,10 @@
 // these needed for object loader...---------------
 #define GLM_FORCE_RADIANS
 #define GLM_GTX_norm
-#include <glm/glm.hpp>
-#include <glm/gtx/vec1.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
+#include <glm/glm/glm.hpp>
+#include <glm/glm/gtx/vec1.hpp>
+#include <glm/glm/gtc/matrix_transform.hpp>
+#include <glm/glm/gtc/type_ptr.hpp>
 // end of the imports needed for object loader...
 
 extern std::vector<Particle *> all_particles;
