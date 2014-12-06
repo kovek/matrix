@@ -12,6 +12,7 @@
 #include "GLFW/glfw3.h"
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
 
 // these needed for object loader...---------------
 #define GLM_FORCE_RADIANS
@@ -463,6 +464,8 @@ float norm(glm::vec3 vec){
 	return sqrt(vec[0]*vec[0] + vec[1]*vec[1] + vec[2]*vec[2] );
 }
 
+int z = 0;
+
 void Scene::draw()
 {
     glClearColor(0.2f, 0.0f, 0.0f, 0.0f);
@@ -631,6 +634,10 @@ void Scene::draw()
 
 		glUniform3f(offsetUniform, (float)current->position[0], (float)current->position[1], (float)current->position[2]);
 
+		if(z == 70){
+			//throw std::invalid_argument("test");
+		}
+		z++;
 
 		size_t colorData = sizeof(vertexData) / 2;
 		glBindBuffer(GL_ARRAY_BUFFER, _vertexBufferObject);

@@ -1,6 +1,7 @@
 #include <vector>
 #include <iostream>
 #include <cmath>
+#include <typeinfo>
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -17,7 +18,12 @@
 
 
 const long double k_e = 8.9875517873681764*pow(10,9);
-const long double delta_t = 1.52l*pow(10, -16)/900l;
+const long double delta_t = 1.52l*pow(10, -16)/2500l;
+const long double G =  6.673*pow(10, -11);
+const long double H =  6.62606957*pow(10, -34);
+const long double C =  2.99792458*pow(10, 8);
+
+bool paused = false;
 
 extern float viewMatrix[16];
 
@@ -83,20 +89,27 @@ void compute_new_values() {
 		current->position[1] += current->velocity[1]*delta_t+0.5*current->acceleration[1]*delta_t*delta_t;
 		current->position[2] += current->velocity[2]*delta_t+0.5*current->acceleration[2]*delta_t*delta_t;
 		current->position_back_log.push_back( current->position );
-		if (current->position_back_log.size()>700){ current->position_back_log.pop_front(); }
+		if (current->position_back_log.size()> 2000){ current->position_back_log.pop_front(); }
 
 	}
 
-	for (uint i = 0; i < all_particles.size(); i++ ){ // calculate new values
-		//if (i==1){ continue; } // skip the proton, for now
 
+	for (uint i = 0; i < all_particles.size(); i++ ){ // calculate new values
 		Particle* current = all_particles[i];
+
+
 		std::vector<long double> sum_of_all_forces = std::vector<long double>{0,0,0};
 
 		for (uint j = 0; j < all_particles.size(); j++ ){ // calculate new acceleration values
+
+
 			if (i==j){ continue; }
 
 			Particle* other = all_particles[j];
+
+			if(current->wavelength != 0 || other->wavelength != 0){ // that means we're dealing with a photon. don't touch its acceleration...
+				continue;
+			}
 
 			// calculate
 			// all_particles[i]->next_position
@@ -139,6 +152,7 @@ void compute_new_values() {
 		current->last_acceleration = current->acceleration;
 		current->acceleration = new_acceleration;
 	}
+
 	for (uint i = 0; i < all_particles.size(); i++ ){
 		Particle* current = all_particles[i];
 		current->velocity[0] += (current->acceleration[0]+current->last_acceleration[0])/2*delta_t;
@@ -253,8 +267,13 @@ void compute_user_input() {
 			case GLFW_KEY_F:
 				newMatrix = move(newMatrix, 0, 0.1f, 0);
 				break;
-
-
+			case GLFW_KEY_SPACE:
+				if(!paused){
+					paused = true;
+				}else{
+					paused = false;
+				}
+				break;
 			case GLFW_KEY_UP:
 				newMatrix = rotate(newMatrix, 0, -theta, 0);
 				break;
@@ -281,6 +300,74 @@ void compute_user_input() {
 	scene.updateCamera();
 }
 
+long double distance(Particle * first, Particle * second){
+	return sqrt(
+		pow(first->position[0]-second->position[0], 2) +
+		pow(first->position[1]-second->position[1], 2) +
+		pow(first->position[2]-second->position[2], 2)
+			);
+}
+long double norm(std::vector<long double> vec){
+	return sqrt(
+		pow(vec[0], 2) +
+		pow(vec[1], 2) +
+		pow(vec[2], 2)
+			);
+}
+
+void check_conditions(){
+	// check if any photons are crossing any electrons
+	Particle * current;
+	Particle * other;
+	for(uint i = 0; i < all_particles.size(); i++){
+		current = all_particles[i];
+		for(uint j = 0; j < all_particles.size(); j++){
+			other = all_particles[j];
+			if (i==j){ continue; }
+
+			if( distance(current, other) < current->radius ) {
+				// other interacts with current
+			}
+		}
+	}
+}
+
+void check_energy(){
+	Particle * current;
+	Particle * other;
+	long double U_g = 0;
+	long double U_e = 0;
+	long double K = 0;
+	long double E = 0;
+	for(uint i = 0; i < all_particles.size(); i++){
+		current = all_particles[i];
+		for(uint j = 0; j < all_particles.size(); j++){
+			other = all_particles[j];
+			if(other == current){ continue; }
+			if(j<=i){ continue; }
+
+			long double dist = distance(current, other);
+
+			//U_g += -G * current->mass * other->mass / dist;
+			U_e += k_e * current->charge * other->charge / dist;
+
+			if( typeid(current) == typeid(Photon *) ){
+				E += H*C/((Photon *)current)->wavelength;
+			}
+
+		}
+
+		K += 1/2.0 * current->mass * pow(norm(current->velocity), 2);
+	}
+
+	//std::cout << "U_g:" << U_g << std::endl;
+	std::cout << "U_e:" << U_e << std::endl;
+	std::cout << "K:" << K << std::endl;
+	std::cout << "E:" << E << std::endl;
+
+	long double total_energy = U_g + U_e + K + E;
+	std::cout << "total_energy: " << total_energy << std::endl;
+}
 
 int openglmain(int argc, const char * argv[]){
 	glfwSetErrorCallback(onError);
@@ -304,7 +391,11 @@ int openglmain(int argc, const char * argv[]){
 
     while (!glfwWindowShouldClose(window))
     {
-		compute_new_values();
+		if( !paused ){
+			compute_new_values();
+		}
+		check_conditions();
+		check_energy();
 
 		compute_user_input();
 
@@ -326,12 +417,11 @@ int openglmain(int argc, const char * argv[]){
     return 0;
 }
 
-
 int main(){
 
 	long double r_not = 5.29 * pow(10,-11);
 	long double v_not = 2.18805743462617 * pow(10,6);
-	v_not *= 1.3f;
+
 
 	all_particles.push_back(new Proton());
 	all_particles.push_back(new Proton());

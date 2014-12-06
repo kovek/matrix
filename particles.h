@@ -9,6 +9,7 @@ struct Particle {
 		double radius;
 		double magnetic_moment;
 		bool spin;
+		long double wavelength = 0;
 
 		mutable std::vector<long double> position = std::vector<long double>{0.0, 0.0, 0.0};
 		mutable std::vector<long double> velocity = std::vector<long double>{0.0, 0.0, 0.0};
@@ -40,5 +41,18 @@ struct Proton: public Particle {
 			radius = 0; // Doesn't matter
 			magnetic_moment = 0.001521032210; // in /mu/B
 			spin = true;
+		}
+};
+
+struct Photon: public Particle {
+	public:
+		Photon(){
+			mass_ev = 0;
+			mass = 0;
+			charge = 0;
+			radius = 0;
+			magnetic_moment = 0;
+			spin = 0;
+			wavelength = 1;
 		}
 };
