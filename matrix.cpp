@@ -421,6 +421,13 @@ int openglmain(int argc, const char * argv[]){
 
 int main(){
 
+
+	// PARTEYYYY
+    const int digits = 100;
+	mpfr::mpreal::set_default_prec(mpfr::digits2bits(digits));
+
+	std::cout.precision(digits);
+
 	mpfr::mpreal r_not = 5.29 * pow(10,-11);
 	mpfr::mpreal v_not = 2.18805743462617 * pow(10,6);
 
