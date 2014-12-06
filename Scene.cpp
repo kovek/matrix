@@ -4,6 +4,9 @@
  * added object loader and trying to draw object...
  */
 
+
+#include <stdio.h>
+#include "MPFR/mpreal.h"
 #include "Scene.h"
 #include <iostream>
 #include "particles.h"
@@ -497,8 +500,8 @@ void Scene::draw()
 		mod = scale(mod, 1/7.0f, 1/7.0f, 1/7.0f);
 
 
-		std::vector<long double> acc = all_particles[0]->acceleration;
-		std::vector<long double> pos = all_particles[0]->position;
+		std::vector<mpfr::mpreal> acc = all_particles[0]->acceleration;
+		std::vector<mpfr::mpreal> pos = all_particles[0]->position;
 
 		length_of_vector = norm(glm::vec3(acc[0], acc[1], acc[2]));
 
@@ -516,7 +519,7 @@ void Scene::draw()
 		transform = getVectorFromTwoPoints( glm::vec3{0,0,0}, glm::vec3{acc[0], acc[1], acc[2]} );
 		mod = transform*mod;
 
-		mod = move(mod, pos[0], pos[1], pos[2]);
+		mod = move(mod, (float)pos[0], (float)pos[1], (float)pos[2]);
 
 		passDataToArray(mod, floats_array);
 
@@ -538,9 +541,9 @@ void Scene::draw()
 		glm::mat4 new_mod = glm::mat4(1);
 		new_mod = scale(new_mod, 0, length_of_vector/9/pow(10,8), 0);
 		new_mod = rotate(new_mod, pi/2, 0, -pi/2);
-		std::vector<long double> pos = all_particles[0]->position;
+		std::vector<mpfr::mpreal> pos = all_particles[0]->position;
 		new_mod = transform*new_mod;
-		new_mod = move(new_mod, pos[0], pos[1], pos[2]);
+		new_mod = move(new_mod, (float)pos[0], (float)pos[1], (float)pos[2]);
 
 		passDataToArray(new_mod, floats_array);
 		glUniformMatrix4fv(objMatrixUniform, 1, GL_FALSE, floats_array);
@@ -579,9 +582,9 @@ void Scene::draw()
 		glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, 0);
 		glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 0, (void*) colorpos);
 
-		std::list< std::vector<long double> >* log = &(current->position_back_log);
-		std::list< std::vector<long double> >::iterator cur = log->begin();
-		std::list< std::vector<long double> >::iterator end = log->end();
+		std::list< std::vector<mpfr::mpreal> >* log = &(current->position_back_log);
+		std::list< std::vector<mpfr::mpreal> >::iterator cur = log->begin();
+		std::list< std::vector<mpfr::mpreal> >::iterator end = log->end();
 
 		uint skip_every_nth = 2;
 		uint i;
@@ -605,7 +608,7 @@ void Scene::draw()
 			float floats_array[16] = {0};
 			glm::mat4 mod = glm::mat4(1.0f);
 			mod = scale(mod, 5/j, 5/j, 5/j);
-			mod = move(mod, (*cur)[0]*pow(10,10), (*cur)[1]*pow(10,10), (*cur)[2]*pow(10,10));
+			mod = move(mod, (float) (*cur)[0]*pow(10,10), (float) (*cur)[1]*pow(10,10), (float) (*cur)[2]*pow(10,10));
 			passDataToArray(mod, floats_array);
 
 			glUniformMatrix4fv(objMatrixUniform, 1, GL_FALSE, floats_array);

@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include "MPFR/mpreal.h"
 #include <vector>
 #include <iostream>
 #include <cmath>
@@ -17,11 +19,11 @@
 
 
 
-const long double k_e = 8.9875517873681764*pow(10,9);
-const long double delta_t = 1.52l*pow(10, -16)/2500l;
-const long double G =  6.673*pow(10, -11);
-const long double H =  6.62606957*pow(10, -34);
-const long double C =  2.99792458*pow(10, 8);
+const mpfr::mpreal k_e = 8.9875517873681764*pow(10,9);
+const mpfr::mpreal delta_t = 1.52l*pow(10, -16)/2500l;
+const mpfr::mpreal G =  6.673*pow(10, -11);
+const mpfr::mpreal H =  6.62606957*pow(10, -34);
+const mpfr::mpreal C =  2.99792458*pow(10, 8);
 
 bool paused = false;
 
@@ -98,7 +100,7 @@ void compute_new_values() {
 		Particle* current = all_particles[i];
 
 
-		std::vector<long double> sum_of_all_forces = std::vector<long double>{0,0,0};
+		std::vector<mpfr::mpreal> sum_of_all_forces = std::vector<mpfr::mpreal>{0,0,0};
 
 		for (uint j = 0; j < all_particles.size(); j++ ){ // calculate new acceleration values
 
@@ -114,19 +116,19 @@ void compute_new_values() {
 			// calculate
 			// all_particles[i]->next_position
 
-			long double dist = sqrt(
+			mpfr::mpreal dist = sqrt(
 				  pow(current->position[0]-other->position[0], 2)
 				+ pow(current->position[1]-other->position[1], 2)
 				+ pow(current->position[2]-other->position[2], 2) );
 
-			long double cl_scalar = - k_e * current->charge * other->charge / dist / dist / dist;
+			mpfr::mpreal cl_scalar = - k_e * current->charge * other->charge / dist / dist / dist;
 
-			std::vector<long double> delta_vector = std::vector<long double>{
+			std::vector<mpfr::mpreal> delta_vector = std::vector<mpfr::mpreal>{
 				other->position[0]-current->position[0],
 				other->position[1]-current->position[1],
 				other->position[2]-current->position[2]};
 
-			std::vector<long double> new_force = std::vector<long double>{
+			std::vector<mpfr::mpreal> new_force = std::vector<mpfr::mpreal>{
 				cl_scalar*delta_vector[0],
 				cl_scalar*delta_vector[1],
 				cl_scalar*delta_vector[2]};
@@ -143,7 +145,7 @@ void compute_new_values() {
 			 << std::endl;
 			 */
 		}
-		std::vector<long double> new_acceleration = std::vector<long double>{
+		std::vector<mpfr::mpreal> new_acceleration = std::vector<mpfr::mpreal>{
 			sum_of_all_forces[0]/current->mass,
 			sum_of_all_forces[1]/current->mass,
 			sum_of_all_forces[2]/current->mass};
@@ -300,14 +302,14 @@ void compute_user_input() {
 	scene.updateCamera();
 }
 
-long double distance(Particle * first, Particle * second){
+mpfr::mpreal distance(Particle * first, Particle * second){
 	return sqrt(
 		pow(first->position[0]-second->position[0], 2) +
 		pow(first->position[1]-second->position[1], 2) +
 		pow(first->position[2]-second->position[2], 2)
 			);
 }
-long double norm(std::vector<long double> vec){
+mpfr::mpreal norm(std::vector<mpfr::mpreal> vec){
 	return sqrt(
 		pow(vec[0], 2) +
 		pow(vec[1], 2) +
@@ -335,10 +337,10 @@ void check_conditions(){
 void check_energy(){
 	Particle * current;
 	Particle * other;
-	long double U_g = 0;
-	long double U_e = 0;
-	long double K = 0;
-	long double E = 0;
+	mpfr::mpreal U_g = 0;
+	mpfr::mpreal U_e = 0;
+	mpfr::mpreal K = 0;
+	mpfr::mpreal E = 0;
 	for(uint i = 0; i < all_particles.size(); i++){
 		current = all_particles[i];
 		for(uint j = 0; j < all_particles.size(); j++){
@@ -346,7 +348,7 @@ void check_energy(){
 			if(other == current){ continue; }
 			if(j<=i){ continue; }
 
-			long double dist = distance(current, other);
+			mpfr::mpreal dist = distance(current, other);
 
 			//U_g += -G * current->mass * other->mass / dist;
 			U_e += k_e * current->charge * other->charge / dist;
@@ -365,7 +367,7 @@ void check_energy(){
 	std::cout << "K:" << K << std::endl;
 	std::cout << "E:" << E << std::endl;
 
-	long double total_energy = U_g + U_e + K + E;
+	mpfr::mpreal total_energy = U_g + U_e + K + E;
 	std::cout << "total_energy: " << total_energy << std::endl;
 }
 
@@ -419,8 +421,8 @@ int openglmain(int argc, const char * argv[]){
 
 int main(){
 
-	long double r_not = 5.29 * pow(10,-11);
-	long double v_not = 2.18805743462617 * pow(10,6);
+	mpfr::mpreal r_not = 5.29 * pow(10,-11);
+	mpfr::mpreal v_not = 2.18805743462617 * pow(10,6);
 
 
 	all_particles.push_back(new Proton());
@@ -428,17 +430,17 @@ int main(){
 	all_particles.push_back(new Electron());
 	all_particles.push_back(new Electron());
 
-	all_particles[0]->position = std::vector<long double>{0.1*r_not, 0, 0};
-	all_particles[0]->velocity = std::vector<long double>{0, 0, 0};
+	all_particles[0]->position = std::vector<mpfr::mpreal>{0.1*r_not, 0, 0};
+	all_particles[0]->velocity = std::vector<mpfr::mpreal>{0, 0, 0};
 
-	all_particles[1]->position = std::vector<long double>{-0.1*r_not, 0, 0};
-	all_particles[1]->velocity = std::vector<long double>{0, 0, 0};
+	all_particles[1]->position = std::vector<mpfr::mpreal>{-0.1*r_not, 0, 0};
+	all_particles[1]->velocity = std::vector<mpfr::mpreal>{0, 0, 0};
 
-	all_particles[2]->position = std::vector<long double>{r_not, 0, 0};
-	all_particles[2]->velocity = std::vector<long double>{0, -v_not, 0};
+	all_particles[2]->position = std::vector<mpfr::mpreal>{r_not, 0, 0};
+	all_particles[2]->velocity = std::vector<mpfr::mpreal>{0, -v_not, 0};
 
-	all_particles[3]->position = std::vector<long double>{-r_not, 0, 0};
-	all_particles[3]->velocity = std::vector<long double>{0, v_not, 0};
+	all_particles[3]->position = std::vector<mpfr::mpreal>{-r_not, 0, 0};
+	all_particles[3]->velocity = std::vector<mpfr::mpreal>{0, v_not, 0};
 
 	for (uint i = 0; i < all_particles.size(); i++ ){ // calculate new values
 
@@ -452,19 +454,19 @@ int main(){
 			// calculate
 			// all_particles[i]->next_position
 
-			long double dist = sqrt(
+			mpfr::mpreal dist = sqrt(
 				  pow(current->position[0]-other->position[0], 2)
 				+ pow(current->position[1]-other->position[1], 2)
 				+ pow(current->position[2]-other->position[2], 2) );
 
-			long double cl_scalar = - k_e * current->charge * other->charge / dist / dist / current->mass / dist;
+			mpfr::mpreal cl_scalar = - k_e * current->charge * other->charge / dist / dist / current->mass / dist;
 
-			std::vector<long double> delta_vector = std::vector<long double>{
+			std::vector<mpfr::mpreal> delta_vector = std::vector<mpfr::mpreal>{
 				other->position[0]-current->position[0],
 				other->position[1]-current->position[1],
 				other->position[2]-current->position[2]};
 
-			std::vector<long double> new_acceleration = std::vector<long double>{
+			std::vector<mpfr::mpreal> new_acceleration = std::vector<mpfr::mpreal>{
 				cl_scalar*delta_vector[0],
 				cl_scalar*delta_vector[1],
 				cl_scalar*delta_vector[2]};
