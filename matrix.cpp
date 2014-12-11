@@ -17,6 +17,19 @@
 #include "Scene.h"
 #include "particles.h"
 
+#include "plplot.h"
+#include "plstream.h"
+
+
+class x00 {
+public:
+    x00( int, const char ** );
+
+private:
+    // Class data
+    static const int NSIZE;
+};
+
 
 
 const mpfr::mpreal k_e = 8.9875517873681764*pow(10,9);
@@ -240,6 +253,58 @@ glm::mat4 rotate(glm::mat4 mat, float y, float x, float z) {
 	return out;
 }
 
+x00* x;
+plstream* pls;
+void init_graphs(int argc, const char * argv[]){
+    x = new x00(argc, argv );
+}
+
+const int x00::NSIZE = 101;
+
+x00::x00( int argc, const char **argv ){
+    PLFLT x[NSIZE], y[NSIZE];
+    PLFLT xmin = 0., xmax = 1., ymin = 0., ymax = 10000.;
+    int   i;
+
+    // Prepare data to be plotted.
+    for ( i = 0; i < NSIZE; i++ )
+    {
+        x[i] = (PLFLT) ( i ) / (PLFLT) ( NSIZE - 1 );
+        y[i] = ymax * x[i] * x[i];
+    }
+
+    pls = new plstream();
+
+    // Parse and process command line arguments
+    pls->parseopts( &argc, argv, PL_PARSE_FULL );
+
+    // Initialize plplot
+	pls->sdev("qtwidget");
+    pls->init();
+
+    // Create a labelled box to hold the plot.
+    pls->env( xmin, xmax, ymin, ymax, 0, 0 );
+    pls->lab( "x", "y=100 x#u2#d", "Simple PLplot demo of a 2D line plot" );
+
+	std::cout << pls << std::endl;
+}
+
+PLFLT * xs = new PLFLT[1];
+PLFLT * ys = new PLFLT[1];
+
+PLFLT maxt = 100;
+PLFLT maxe = 100;
+PLFLT currt = 0;
+
+mpfr::mpreal total_energy;
+void display_graphs() {
+	currt += 0.0001f;
+	xs[0] = currt;
+	ys[0] = ((float)total_energy)*10e19;
+
+	pls->poin(1, xs, ys, 1);
+	pls->flush();
+}
 
 void compute_user_input() {
 	//new_perspective_matrix = perspectiveMatrix;
@@ -367,8 +432,9 @@ void check_energy(){
 	std::cout << "K:" << K << std::endl;
 	std::cout << "E:" << E << std::endl;
 
-	mpfr::mpreal total_energy = U_g + U_e + K + E;
+	total_energy = U_g + U_e + K + E;
 	std::cout << "total_energy: " << total_energy << std::endl;
+
 }
 
 int openglmain(int argc, const char * argv[]){
@@ -381,6 +447,7 @@ int openglmain(int argc, const char * argv[]){
     glfwMakeContextCurrent(window);
 
     scene.init();
+	init_graphs(argc, argv);
 
     int windowWidth = 0;
     int windowHeight = 0;
@@ -398,8 +465,8 @@ int openglmain(int argc, const char * argv[]){
 		}
 		check_conditions();
 		check_energy();
-
 		compute_user_input();
+		display_graphs();
 
 		/*
 		 std::cout << all_particles[0]->position[0]
@@ -419,11 +486,10 @@ int openglmain(int argc, const char * argv[]){
     return 0;
 }
 
-int main(){
-
-
+int main(int argc, const char * argv[]){
 	// PARTEYYYY
-    const int digits = 100;
+	// We are working with `digits` long numbers now hehe.
+    const int digits = 500;
 	mpfr::mpreal::set_default_prec(mpfr::digits2bits(digits));
 
 	std::cout.precision(digits);
@@ -494,7 +560,11 @@ int main(){
 
 	//return 0;
 
-	openglmain(0, NULL);
+	openglmain(argc, argv);
+
+	// Destroy the graphs window setup.
+	//delete pls;
+    //delete x;
 
 	return 0;
 }

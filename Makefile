@@ -11,7 +11,7 @@ test: shader.o
 shader.o:
 	g++ -c common/shader.cpp -o shader.o
 matrix:
-	g++ matrix.cpp Scene.cpp -g -o main -L./ -I./ -I./glfw-3.0.4/include glfw-3.0.4/build/src/libglfw3.a -lglfw3 -framework Cocoa -framework CoreVideo -framework OpenGL -framework IOKit -std=c++0x -lmpfr
+	g++ matrix.cpp Scene.cpp -g -o main -L./ -I./ -I./glfw-3.0.4/include glfw-3.0.4/build/src/libglfw3.a -lglfw3 -framework Cocoa -framework CoreVideo -framework OpenGL -framework IOKit -std=c++0x -lmpfr `pkg-config --cflags --libs plplotd-c++`
 
 	./main
 test_object: matrix.o Scene.o
