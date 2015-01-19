@@ -313,8 +313,9 @@ mpfr::mpreal total_energy;
 void display_graphs() {
 	currt += 0.0001f;
 	xs[0] = currt;
-	ys[0] = ((float)total_energy)*10e19;
+	ys[0] = -((float)total_energy)*10e19;
 
+	std::cout << xs[0] << "<<<<" << ys[0] << std::endl;
 	pls->poin(1, xs, ys, 1);
 	pls->flush();
 }
@@ -546,17 +547,13 @@ int main(int argc, const char * argv[]){
 
 	all_particles.push_back(new Proton());
 	all_particles.push_back(new Electron());
-	all_particles.push_back(new Photon());
 
 
 	all_particles[0]->position = std::vector<mpfr::mpreal>{0.1*r_not, 0, 0};
 	all_particles[0]->velocity = std::vector<mpfr::mpreal>{0, 0, 0};
 
-	all_particles[1]->position = std::vector<mpfr::mpreal>{-0.1*r_not, 0, 0};
-	all_particles[1]->velocity = std::vector<mpfr::mpreal>{0, 0, 0};
-
-	all_particles[2]->position = std::vector<mpfr::mpreal>{r_not, 0, 0};
-	all_particles[2]->velocity = std::vector<mpfr::mpreal>{0, -v_not, 0};
+	all_particles[1]->position = std::vector<mpfr::mpreal>{-1.0*r_not, 0, 0};
+	all_particles[1]->velocity = std::vector<mpfr::mpreal>{0, v_not, 0};
 
 	for (uint i = 0; i < all_particles.size(); i++ ){ // calculate new values
 		Particle* current = all_particles[i];
