@@ -2,8 +2,47 @@
 #include <mpreal.h>
 #include <list>
 #include <cmath>
+#include <string>
+
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/serialization/split_free.hpp>
+
+
+namespace boost {
+namespace serialization {
+	template<class Archive>
+	void save(Archive & ar, mpfr::mpreal const & m, const unsigned int version) {
+		std::string foo = m.toString();
+		ar & foo;
+		std::cout << ">>>" << version << std::endl;
+	}
+
+	template<class Archive>
+	void load(Archive & ar, mpfr::mpreal & m, const unsigned int version){
+		std::string s;
+		ar & s;
+		m = mpfr::mpreal(s.c_str());
+	}
+
+	template<class Archive>
+	void serialize(Archive & ar, mpfr::mpreal & m, const unsigned int version){
+		split_free(ar, m, version);
+	}
+}
+}
 
 struct Particle {
+    private:
+		friend class boost::serialization::access;
+		template<class Archive>
+		void serialize(Archive & ar, const unsigned int version) {
+			ar & position;
+			ar & velocity;
+			ar & acceleration;
+		}
+
+
 	public:
 		mpfr::mpreal mass;
 		mpfr::mpreal mass_ev;
@@ -40,6 +79,18 @@ struct Proton: public Particle {
 			mass_ev = 938.272046; // in MeV/c^2
 			mass = 1.672621777 * pow(10,-27); // in kg
 			charge = 1.602176565*pow(10,-19); // in Coulombs
+			radius = 0; // Doesn't matter
+			magnetic_moment = 0.001521032210; // in /mu/B
+			spin = true;
+		}
+};
+
+struct Proton: public Particle {
+	public:
+		Proton(){
+			mass_ev = 938.272046; // in MeV/c^2
+			mass = 1.672621777 * pow(10,-27); // in kg
+			charge = 0; // in Coulombs
 			radius = 0; // Doesn't matter
 			magnetic_moment = 0.001521032210; // in /mu/B
 			spin = true;

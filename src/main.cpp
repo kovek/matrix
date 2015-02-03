@@ -17,11 +17,17 @@
 #include <plplot/plplot.h>
 #include <plplot/plstream.h>
 
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/serialization/vector.hpp>
+#include <fstream>
+
 #include "common/shader.hpp"
 
 #include "Scene.h"
 #include "particles.h"
-
+#include <string>
+std::string times;
 
 
 class x00 {
@@ -145,7 +151,15 @@ void compute_new_values() {
 				+ pow(current->position[1]-other->position[1], 2)
 				+ pow(current->position[2]-other->position[2], 2) );
 
+			// Formula to be optimized (simplified).
+
 			mpfr::mpreal cl_scalar = - k_e * current->charge * other->charge / dist / dist / dist;
+			mpfr::mpreal gravity_scalar = G * current->mass * other-> mass / dist /dist / dist;
+			cl_scalar = 0.0f;
+			gravity_scalar = 0.0f;
+
+			mpfr::mpreal awe_scalar = -(pow(10, 15) * exp(-dist*pow(10,15) ) )/dist - (exp(-dist*pow(10,15) ))/ dist / dist;
+			std::cout << awe_scalar << std::endl;
 
 			std::vector<mpfr::mpreal> delta_vector = std::vector<mpfr::mpreal>{
 				other->position[0]-current->position[0],
@@ -153,9 +167,9 @@ void compute_new_values() {
 				other->position[2]-current->position[2]};
 
 			std::vector<mpfr::mpreal> new_force = std::vector<mpfr::mpreal>{
-				cl_scalar*delta_vector[0],
-				cl_scalar*delta_vector[1],
-				cl_scalar*delta_vector[2]};
+				(awe_scalar + gravity_scalar + cl_scalar) *delta_vector[0],
+				(awe_scalar + gravity_scalar + cl_scalar) *delta_vector[1],
+				(awe_scalar + gravity_scalar + cl_scalar) *delta_vector[2]};
 
 			sum_of_all_forces[0] += new_force[0];
 			sum_of_all_forces[1] += new_force[1];
@@ -184,9 +198,53 @@ void compute_new_values() {
 		if(current->energy != 0){
 			continue;
 		}
-		current->velocity[0] += (current->acceleration[0]+current->last_acceleration[0])/2*delta_t;
-		current->velocity[1] += (current->acceleration[1]+current->last_acceleration[1])/2*delta_t;
-		current->velocity[2] += (current->acceleration[2]+current->last_acceleration[2])/2*delta_t;
+
+		std::vector<mpfr::mpreal> initial_velocity = std::vector<mpfr::mpreal> {
+			current->velocity[0],
+			current->velocity[1],
+			current->velocity[2],
+		}
+
+		std::vector<mpfr::mpreal> final_velocity = std::vector<mpfr::mpreal> {
+			(current->acceleration[0]+current->last_acceleration[0])/2*delta_t,
+			(current->acceleration[1]+current->last_acceleration[1])/2*delta_t,
+			(current->acceleration[2]+current->last_acceleration[2])/2*delta_t
+		}
+
+		// equation photo: http://goo.gl/J1d2yP
+		mpfr::mpreal velocity_x = std::sqrt(
+			1 - 1/ pow(
+				1/std::sqrt(
+					1- pow(
+						initial_velocity[0]/C
+					,2)
+				) + (final_velocity[0]-initial_velocity[0])/2/C/C)
+			, 2)
+		);
+
+		mpfr::mpreal velocity_y = std::sqrt(
+			1 - 1/ pow(
+				1/std::sqrt(
+					1- pow(
+						initial_velocity[1]/C
+					,2)
+				) + (final_velocity[1]-initial_velocity[1])/2/C/C)
+			, 2)
+		);
+
+		mpfr::mpreal velocity_z = std::sqrt(
+			1 - 1/ pow(
+				1/std::sqrt(
+					1- pow(
+						initial_velocity[2]/C
+					,2)
+				) + (final_velocity[2]-initial_velocity[2])/2/C/C)
+			, 2)
+		);
+
+		current->velocity[0] = velocity_x;
+		current->velocity[1] = velocity_y;
+		current->velocity[2] = velocity_z;
 	}
 }
 
@@ -315,7 +373,6 @@ void display_graphs() {
 	xs[0] = currt;
 	ys[0] = -((float)total_energy)*10e19;
 
-	std::cout << xs[0] << "<<<<" << ys[0] << std::endl;
 	pls->poin(1, xs, ys, 1);
 	pls->flush();
 }
@@ -438,6 +495,27 @@ void check_conditions(){
 	}
 }
 
+void save_everything(){
+	std::string filename = "local/" + times;
+	std::cout << filename << std::endl;
+	std::ofstream ofs(filename, std::ofstream::app);
+
+	std::string version = 5;
+
+	{
+		boost::archive::text_oarchive oa(ofs);
+		ofs << "version:" << version << std::endl;
+		oa << all_particles;
+		ofs << std::endl;
+		ofs.close();
+	}
+}
+
+void load_everything(std::string timestamp, int version){
+	std::ifstream ifs(filename);
+
+}
+
 void check_energy(){
 	Particle * current;
 	Particle * other;
@@ -513,6 +591,7 @@ int openglmain(int argc, const char * argv[]){
 		compute_user_input();
 		display_graphs();
 		//create_photons();
+		save_everything();
 
 		/*
 		 std::cout << all_particles[0]->position[0]
@@ -534,6 +613,11 @@ int openglmain(int argc, const char * argv[]){
 
 int main(int argc, const char * argv[]){
 	srand (time(NULL));
+
+	time_t timev;
+	time(&timev);
+	times = std::to_string(timev);
+
 	// PARTEYYYY
 	// We are working with `digits` long numbers now hehe.
     const int digits = 500;
@@ -543,17 +627,19 @@ int main(int argc, const char * argv[]){
 
 	mpfr::mpreal r_not = 5.29 * pow(10,-11);
 	mpfr::mpreal v_not = 2.18805743462617 * pow(10,6);
+	mpfr::mpreal new_dist = 0.29 * pow(10,-13);
+
 
 
 	all_particles.push_back(new Proton());
 	all_particles.push_back(new Electron());
 
 
-	all_particles[0]->position = std::vector<mpfr::mpreal>{0.1*r_not, 0, 0};
+	all_particles[0]->position = std::vector<mpfr::mpreal>{-new_dist, 0, 0};
 	all_particles[0]->velocity = std::vector<mpfr::mpreal>{0, 0, 0};
 
-	all_particles[1]->position = std::vector<mpfr::mpreal>{-1.0*r_not, 0, 0};
-	all_particles[1]->velocity = std::vector<mpfr::mpreal>{0, v_not, 0};
+	all_particles[1]->position = std::vector<mpfr::mpreal>{new_dist, 0, 0};
+	all_particles[1]->velocity = std::vector<mpfr::mpreal>{0, 0, 0};
 
 	for (uint i = 0; i < all_particles.size(); i++ ){ // calculate new values
 		Particle* current = all_particles[i];
@@ -575,6 +661,7 @@ int main(int argc, const char * argv[]){
 				+ pow(current->position[2]-other->position[2], 2) );
 
 			mpfr::mpreal cl_scalar = - k_e * current->charge * other->charge / dist / dist / current->mass / dist;
+			cl_scalar = 0.0f;
 
 			std::vector<mpfr::mpreal> delta_vector = std::vector<mpfr::mpreal>{
 				other->position[0]-current->position[0],
