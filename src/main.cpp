@@ -27,6 +27,7 @@
 #include "Scene.h"
 #include "particles.h"
 #include <string>
+#include <thread>
 std::string times;
 
 
@@ -42,7 +43,7 @@ private:
 
 
 const mpfr::mpreal k_e = 8.9875517873681764*pow(10,9);
-const mpfr::mpreal delta_t = 1.52l*pow(10, -16)/2500l;
+const mpfr::mpreal delta_t = 1.52l*pow(10, -15)/500l;
 const mpfr::mpreal G =  6.673*pow(10, -11);
 const mpfr::mpreal H =  6.62606957*pow(10, -34);
 const mpfr::mpreal C =  2.99792458*pow(10, 8);
@@ -84,6 +85,10 @@ void onFramebufferResize(GLFWwindow* window, int width, int height)
     scene.reshape(width, height);
     glfwSwapBuffers(window);
 
+}
+
+mpfr::mpreal my_gamma(mpfr::mpreal velocity){
+	return 1.0f/sqrt(1 - pow(velocity/C, 2) );
 }
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -130,7 +135,6 @@ void compute_new_values() {
 			continue;
 		}
 
-
 		std::vector<mpfr::mpreal> sum_of_all_forces = std::vector<mpfr::mpreal>{0,0,0};
 
 		for (uint j = 0; j < all_particles.size(); j++ ){ // calculate new acceleration values
@@ -155,11 +159,13 @@ void compute_new_values() {
 
 			mpfr::mpreal cl_scalar = - k_e * current->charge * other->charge / dist / dist / dist;
 			mpfr::mpreal gravity_scalar = G * current->mass * other-> mass / dist /dist / dist;
-			cl_scalar = 0.0f;
-			gravity_scalar = 0.0f;
 
 			mpfr::mpreal awe_scalar = -(pow(10, 15) * exp(-dist*pow(10,15) ) )/dist - (exp(-dist*pow(10,15) ))/ dist / dist;
 			std::cout << awe_scalar << std::endl;
+
+			awe_scalar = 0;
+			cl_scalar = 0;
+			gravity_scalar = 0;
 
 			std::vector<mpfr::mpreal> delta_vector = std::vector<mpfr::mpreal>{
 				other->position[0]-current->position[0],
@@ -184,9 +190,9 @@ void compute_new_values() {
 			 */
 		}
 		std::vector<mpfr::mpreal> new_acceleration = std::vector<mpfr::mpreal>{
-			sum_of_all_forces[0]/current->mass,
-			sum_of_all_forces[1]/current->mass,
-			sum_of_all_forces[2]/current->mass};
+			sum_of_all_forces[0]/(current->mass*my_gamma( current->velocity[0] )),
+			sum_of_all_forces[1]/(current->mass*my_gamma( current->velocity[1] )),
+			sum_of_all_forces[2]/(current->mass*my_gamma( current->velocity[2] ))};
 
 
 		current->last_acceleration = current->acceleration;
@@ -203,48 +209,94 @@ void compute_new_values() {
 			current->velocity[0],
 			current->velocity[1],
 			current->velocity[2],
-		}
+		};
 
+		// Leap Frog
 		std::vector<mpfr::mpreal> final_velocity = std::vector<mpfr::mpreal> {
-			(current->acceleration[0]+current->last_acceleration[0])/2*delta_t,
-			(current->acceleration[1]+current->last_acceleration[1])/2*delta_t,
-			(current->acceleration[2]+current->last_acceleration[2])/2*delta_t
-		}
+			initial_velocity[0] + (current->acceleration[0]+current->last_acceleration[0])/2*delta_t,
+			initial_velocity[1] + (current->acceleration[1]+current->last_acceleration[1])/2*delta_t,
+			initial_velocity[2] + (current->acceleration[2]+current->last_acceleration[2])/2*delta_t
+		};
+
+		std::cout <<
+			">>>" << std::endl
+			<< current->velocity[0]/C << std::endl
+			<< current->velocity[1]/C << std::endl
+			<< current->velocity[2]/C << std::endl;
+
 
 		// equation photo: http://goo.gl/J1d2yP
-		mpfr::mpreal velocity_x = std::sqrt(
-			1 - 1/ pow(
-				1/std::sqrt(
-					1- pow(
+		for (uint j = 0; j < 3; j++){
+			int dir = 1;
+			if(current->velocity[j] < 0){
+				dir = -1;
+			}
+
+			mpfr::mpreal gamma_factor = my_gamma( initial_velocity[j] );
+
+			mpfr::mpreal mass_initial = current->mass * gamma_factor;
+
+			mpfr::mpreal relativistic_energy = current->mass * pow(C, 2) * (gamma_factor - 1);
+
+			mpfr::mpreal delta_v = final_velocity[j] - initial_velocity[j];
+
+			mpfr::mpreal delta_energy = 1.0f/2.0f * mass_initial * pow(delta_v, 2);
+
+			mpfr::mpreal energy_final = delta_energy + relativistic_energy;
+
+			mpfr::mpreal velocity_final = C * sqrt(
+				1 - 1/pow(
+					energy_final / current->mass / pow(C, 2) + 1
+				, 2)
+			);
+
+			std::cout
+				<< "Gamma factor: " << gamma_factor << std::endl
+				<< "Initial Mass: " << mass_initial << std::endl
+				<< "Relative Energy : " << relativistic_energy << std::endl
+				<< "Delta v : " << delta_v << std::endl
+				<< "Delta Energy : " << delta_energy << std::endl
+				<< "Energy Final : " << energy_final << std::endl
+				<< "Velocity Final : " << velocity_final << std::endl
+					<< std::endl;
+
+			//mpfr::mpreal energy = 1.0f/2.0f * current->mass * C * C * ( gamma_factor - 1);
+
+			current->velocity[j] = velocity_final;
+		}
+
+		for (uint j = 0; j < 3; j++){
+			current->kinetic_energy[j] = 1.0f/2.0f * current->mass * pow(current->velocity[j], 2) * (my_gamma(current->velocity[j])-1);
+		}
+
+		/*
+		std::cout << "in sqrt" <<
+			1.0f - 1.0f/pow(
+				1.0f/sqrt(
+					1.0f- pow(
 						initial_velocity[0]/C
 					,2)
-				) + (final_velocity[0]-initial_velocity[0])/2/C/C)
-			, 2)
-		);
+				) + abs(final_velocity[0]-initial_velocity[0])/2/C/C
+			, 2) << std::endl;
 
-		mpfr::mpreal velocity_y = std::sqrt(
-			1 - 1/ pow(
-				1/std::sqrt(
-					1- pow(
-						initial_velocity[1]/C
+		std::cout << "in pow in sqrt" <<
+				1.0f/sqrt(
+					1.0f- pow(
+						initial_velocity[0]/C
 					,2)
-				) + (final_velocity[1]-initial_velocity[1])/2/C/C)
-			, 2)
-		);
+				) + (final_velocity[0]-initial_velocity[0])/2/C/C << std::endl;
 
-		mpfr::mpreal velocity_z = std::sqrt(
-			1 - 1/ pow(
-				1/std::sqrt(
-					1- pow(
-						initial_velocity[2]/C
-					,2)
-				) + (final_velocity[2]-initial_velocity[2])/2/C/C)
-			, 2)
-		);
+		std::cout << "in pow in pow in sqrt" <<
+					1.0f- pow(
+						initial_velocity[0]/C
+					,2) << std::endl;
 
-		current->velocity[0] = velocity_x;
-		current->velocity[1] = velocity_y;
-		current->velocity[2] = velocity_z;
+		std::cout << "ratio" <<
+						initial_velocity[0]/C << std::endl;
+
+
+		*/
+
 	}
 }
 
@@ -385,7 +437,7 @@ void create_photons(){
 				mpfr::mpreal x = (std::rand() / RAND_MAX);
 				mpfr::mpreal y = (std::rand() / RAND_MAX);
 				mpfr::mpreal z = (std::rand() / RAND_MAX);
-				mpfr::mpreal k = std::sqrt( (long double) (x*x + y*y + z*z) )/C*100000;
+				mpfr::mpreal k = sqrt( (long double) (x*x + y*y + z*z) )/C*100000;
 				std::vector<mpfr::mpreal> velocity = {x/k, y/k, z/k};
 
 				all_particles.push_back(new Photon());
@@ -500,7 +552,7 @@ void save_everything(){
 	std::cout << filename << std::endl;
 	std::ofstream ofs(filename, std::ofstream::app);
 
-	std::string version = 5;
+	std::string version = "5";
 
 	{
 		boost::archive::text_oarchive oa(ofs);
@@ -512,8 +564,8 @@ void save_everything(){
 }
 
 void load_everything(std::string timestamp, int version){
+	std::string filename = "local/123";
 	std::ifstream ifs(filename);
-
 }
 
 void check_energy(){
@@ -583,15 +635,24 @@ int openglmain(int argc, const char * argv[]){
 
     while (!glfwWindowShouldClose(window))
     {
-		if( !paused ){
-			compute_new_values();
+		std::cout << "New iteration" << std::endl;
+
+		if( paused ){
+			scene.draw();
+			continue;
 		}
-		check_conditions();
-		check_energy();
+
+		std::thread compute (compute_new_values);
+
+		std::thread check_cond(check_conditions);
+		std::thread check_E(check_energy);
 		compute_user_input();
-		display_graphs();
+
+		std::thread show_graph(display_graphs);
+
 		//create_photons();
-		save_everything();
+
+		std::thread save_log(save_everything);
 
 		/*
 		 std::cout << all_particles[0]->position[0]
@@ -600,7 +661,16 @@ int openglmain(int argc, const char * argv[]){
 			 << std::endl;
 			 */
 
-        scene.draw();
+		//std::thread draw(scene.draw);
+		scene.draw();
+
+		compute.join();
+		check_cond.join();
+		check_E.join();
+		show_graph.join();
+		save_log.join();
+		//draw.join();
+
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -625,7 +695,7 @@ int main(int argc, const char * argv[]){
 
 	std::cout.precision(digits);
 
-	mpfr::mpreal r_not = 5.29 * pow(10,-11);
+	mpfr::mpreal r_not = 5.29 * pow(10,-16);
 	mpfr::mpreal v_not = 2.18805743462617 * pow(10,6);
 	mpfr::mpreal new_dist = 0.29 * pow(10,-13);
 
@@ -635,11 +705,11 @@ int main(int argc, const char * argv[]){
 	all_particles.push_back(new Electron());
 
 
-	all_particles[0]->position = std::vector<mpfr::mpreal>{-new_dist, 0, 0};
-	all_particles[0]->velocity = std::vector<mpfr::mpreal>{0, 0, 0};
-
-	all_particles[1]->position = std::vector<mpfr::mpreal>{new_dist, 0, 0};
+	all_particles[1]->position = std::vector<mpfr::mpreal>{0, 0, 0};
 	all_particles[1]->velocity = std::vector<mpfr::mpreal>{0, 0, 0};
+
+	all_particles[1]->position = std::vector<mpfr::mpreal>{r_not, 0, 0};
+	all_particles[1]->velocity = std::vector<mpfr::mpreal>{v_not, 0, 0};
 
 	for (uint i = 0; i < all_particles.size(); i++ ){ // calculate new values
 		Particle* current = all_particles[i];

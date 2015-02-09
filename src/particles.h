@@ -15,7 +15,7 @@ namespace serialization {
 	void save(Archive & ar, mpfr::mpreal const & m, const unsigned int version) {
 		std::string foo = m.toString();
 		ar & foo;
-		std::cout << ">>>" << version << std::endl;
+		//std::cout << ">>>" << version << std::endl;
 	}
 
 	template<class Archive>
@@ -51,6 +51,7 @@ struct Particle {
 		double magnetic_moment;
 		bool spin;
 		mpfr::mpreal energy = 0;
+		std::vector<mpfr::mpreal> kinetic_energy = std::vector<mpfr::mpreal>{0, 0, 0};
 
 		mutable std::vector<mpfr::mpreal> position = std::vector<mpfr::mpreal>{0.0, 0.0, 0.0};
 		mutable std::vector<mpfr::mpreal> velocity = std::vector<mpfr::mpreal>{0.0, 0.0, 0.0};
@@ -85,9 +86,9 @@ struct Proton: public Particle {
 		}
 };
 
-struct Proton: public Particle {
+struct Neutron: public Particle {
 	public:
-		Proton(){
+		Neutron(){
 			mass_ev = 938.272046; // in MeV/c^2
 			mass = 1.672621777 * pow(10,-27); // in kg
 			charge = 0; // in Coulombs
