@@ -28,6 +28,11 @@
 #include "particles.h"
 #include <string>
 #include <thread>
+#include <time.h>
+#include <regex>
+#include <boost/algorithm/string.hpp>
+#include "md5.h"
+
 std::string times;
 
 
@@ -119,7 +124,7 @@ void compute_new_values() {
 		current->position[1] += current->velocity[1]*delta_t+0.5*current->acceleration[1]*delta_t*delta_t;
 		current->position[2] += current->velocity[2]*delta_t+0.5*current->acceleration[2]*delta_t*delta_t;
 		current->position_back_log.push_back( current->position );
-		if (current->position_back_log.size()> 2000){ current->position_back_log.pop_front(); }
+		if (current->position_back_log.size()> 50){ current->position_back_log.pop_front(); }
 
 		/*
 		std::cout << ">>" << std::endl;
@@ -161,11 +166,14 @@ void compute_new_values() {
 			mpfr::mpreal gravity_scalar = G * current->mass * other-> mass / dist /dist / dist;
 
 			mpfr::mpreal awe_scalar = -(pow(10, 15) * exp(-dist*pow(10,15) ) )/dist - (exp(-dist*pow(10,15) ))/ dist / dist;
-			std::cout << awe_scalar << std::endl;
 
+			//std::cout << awe_scalar << std::endl;
+
+			/*
 			awe_scalar = 0;
 			cl_scalar = 0;
 			gravity_scalar = 0;
+			*/
 
 			std::vector<mpfr::mpreal> delta_vector = std::vector<mpfr::mpreal>{
 				other->position[0]-current->position[0],
@@ -182,12 +190,10 @@ void compute_new_values() {
 			sum_of_all_forces[2] += new_force[2];
 
 
-			/*
 			std::cout << all_particles[i]->position[0] << " "
 				<< all_particles[i]->position[1] << " "
 				<< all_particles[i]->position[2] << " "
 			 << std::endl;
-			 */
 		}
 		std::vector<mpfr::mpreal> new_acceleration = std::vector<mpfr::mpreal>{
 			sum_of_all_forces[0]/(current->mass*my_gamma( current->velocity[0] )),
@@ -218,11 +224,13 @@ void compute_new_values() {
 			initial_velocity[2] + (current->acceleration[2]+current->last_acceleration[2])/2*delta_t
 		};
 
+		/*
 		std::cout <<
 			">>>" << std::endl
 			<< current->velocity[0]/C << std::endl
 			<< current->velocity[1]/C << std::endl
 			<< current->velocity[2]/C << std::endl;
+		*/
 
 
 		// equation photo: http://goo.gl/J1d2yP
@@ -250,6 +258,7 @@ void compute_new_values() {
 				, 2)
 			);
 
+			/*
 			std::cout
 				<< "Gamma factor: " << gamma_factor << std::endl
 				<< "Initial Mass: " << mass_initial << std::endl
@@ -259,6 +268,7 @@ void compute_new_values() {
 				<< "Energy Final : " << energy_final << std::endl
 				<< "Velocity Final : " << velocity_final << std::endl
 					<< std::endl;
+			*/
 
 			//mpfr::mpreal energy = 1.0f/2.0f * current->mass * C * C * ( gamma_factor - 1);
 
@@ -547,26 +557,165 @@ void check_conditions(){
 	}
 }
 
+uint iteration = 0;
 void save_everything(){
+	iteration++;
 	std::string filename = "local/" + times;
-	std::cout << filename << std::endl;
+	//std::cout << filename << std::endl;
 	std::ofstream ofs(filename, std::ofstream::app);
 
 	std::string version = "5";
 
 	{
 		boost::archive::text_oarchive oa(ofs);
-		ofs << "version:" << version << std::endl;
+		ofs << "iteration:" << iteration << std::endl;
 		oa << all_particles;
 		ofs << std::endl;
 		ofs.close();
 	}
 }
 
-void load_everything(std::string timestamp, int version){
-	std::string filename = "local/123";
-	std::ifstream ifs(filename);
+class gps_position
+{
+	private:
+		friend class boost::serialization::access;
+		template<class Archive>
+		void serialize(Archive & ar, const unsigned int version) {
+			ar & degrees;
+			ar & minutes;
+			ar & seconds;
+		}
+		int minutes;
+		float seconds;
+
+	public:
+		gps_position(){};
+		gps_position(int d, int m, float s) :
+		degrees(d), minutes(m), seconds(s)
+		{}
+		int degrees;
+};
+
+std::string return_match_string(std::string source, std::string expression){
+	std::smatch m;
+	std::regex e(expression);
+	if(std::regex_search(source, m, e){
+		return (std::string)m[1];
+	}else{
+		return std::string;
+	}
 }
+
+std::string get_current_commit(){
+	std::string commit_hash = return_match_string(filename, "^(.*)\/.*$");
+
+	FILE * output = popen("git", "describe", "--abbrev=0", "--always");
+	if(!output){
+		// couldn't get output from syscall.
+		return false;
+	}
+
+	std::string current_commit_hash;
+	fgets(&current_commit_hash, 41, output);
+}
+bool correct_commit_hash(std::string filename){
+	std::string current_commit_hash = get_current_commit();
+
+	if (commit_hash == current_commit_hash){
+		return true;
+	}
+
+	return false;
+}
+
+// Fuck sqlite and how it is implemented in c++
+std::string sqlite_initial_condition_result;
+static int callback(void *NotUsed, int argc, char **argv, char **azColName){
+	sqlite_initial_condition_result = argv[0];
+}
+
+std::string get_initial_condition_string(std::string filename, std::string iteration){
+	sqlite3 * db;
+	char *errmsg = 0;
+	int rc;
+
+	rc = sqlite3_open(filename, &db);
+	if(rc){
+		std::cout << "Couldn't open db" << std::endl;
+		return;
+	}
+
+	std::string sql = "SELECT conditions FROM data WHERE iteration="+iteration+";";
+	rc = sqlite3_exec(db, sql, callback, 0, &errmsg);
+	if (rc != SQLITE_OK){
+		std::cout << "Coudn't call sql" << std::endl;
+		return;
+	}
+	sqlite3_close(db);
+	return *sqlite_initial_condition_result;
+}
+
+std::string save_information(){
+	std::string filename = get_current_commit() "/" initial_conditions_hash;
+
+	sqlite3 * db;
+	char *errmsg = 0;
+	int rc;
+
+	rc = sqlite3_open(filename, &db);
+	if(rc){
+		std::cout << "Couldn't open db" << std::endl;
+		return;
+	}
+
+	std::string sql = "INSERT INTO data ";
+	rc = sqlite3_exec(db, sql, callback, 0, &errmsg);
+	if (rc != SQLITE_OK){
+		std::cout << "Coudn't call sql" << std::endl;
+		return;
+	}
+
+	sqlite3_close(db);
+	return *sqlite_initial_condition_result;
+}
+
+void load_everything(std::string filename, std::string iteration){
+	std::string commit_hash = return_match_string(filename, "^(.*)\/.*$");
+
+	if(!correct_commit_hash(commit_hash)){
+		return;
+	}
+
+	// load sqlite db
+	std::initial_cond = get_initial_condition_string(filename, iteration);
+
+	std::cout << "HERE" << initial_cond << std::endl;
+
+	{
+		std::istringstream needed_information_stream(initial_cond);
+		boost::archive::text_iarchive ia{needed_information_stream};
+		std::vector<Particle *> my_particles;
+		ia >> my_particles;
+		ifs.close();
+	}
+}
+
+// Convert initial conditions file to hash
+// Save that file with "commit_hash/hash" as the filename
+// create database with that hash name
+// run
+
+/*
+ * build/main commit_hash/hash iteration
+ * open database. read iteration
+ * run while setting parent as the iteration selected.
+ */
+
+/*
+ * build/main commit_hash/hash
+ * open database. read last iteration
+ * run.
+ */
 
 void check_energy(){
 	Particle * current;
@@ -612,6 +761,8 @@ void check_energy(){
 	//std::cout << "total_energy: " << total_energy << std::endl;
 }
 
+clock_t timestamp;
+clock_t timestamp2;
 int openglmain(int argc, const char * argv[]){
 	glfwSetErrorCallback(onError);
 
@@ -635,13 +786,17 @@ int openglmain(int argc, const char * argv[]){
 
     while (!glfwWindowShouldClose(window))
     {
-		std::cout << "New iteration" << std::endl;
+		//std::cout << "New iteration" << std::endl;
 
 		if( paused ){
 			scene.draw();
 			continue;
 		}
 
+
+		timestamp = clock();
+
+		//*
 		std::thread compute (compute_new_values);
 
 		std::thread check_cond(check_conditions);
@@ -653,6 +808,16 @@ int openglmain(int argc, const char * argv[]){
 		//create_photons();
 
 		std::thread save_log(save_everything);
+		//*/
+
+		/*
+		compute_new_values();
+		check_conditions();
+		check_energy();
+		compute_user_input();
+		display_graphs();
+		save_everything();
+		//*/
 
 		/*
 		 std::cout << all_particles[0]->position[0]
@@ -661,16 +826,20 @@ int openglmain(int argc, const char * argv[]){
 			 << std::endl;
 			 */
 
-		//std::thread draw(scene.draw);
+		//std::thread draw_thread(&Scene::draw, scene);
 		scene.draw();
 
+		//*
 		compute.join();
 		check_cond.join();
 		check_E.join();
 		show_graph.join();
 		save_log.join();
-		//draw.join();
+		//draw_thread.join();
+		//*/
 
+		timestamp2 = clock();
+		std::cout << timestamp2 - timestamp << " " << std::flush;
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -681,7 +850,29 @@ int openglmain(int argc, const char * argv[]){
     return 0;
 }
 
+std::string load_filename;
+std::string load_iteration;
+void parse_input(int argc, const char * argv[]){
+	for (int i = 1; i < argc; i++) {
+		if (i + 1 != argc) // Check that we haven't finished parsing already
+			if (argv[i] == "-h") {
+				load_filename = argv[i + 1];
+			} else if (argv[i] == "-i") {
+				load_iteration = argv[i + 1];
+			} else {
+				std::cout << "Not enough or invalid arguments, please try again.\n";
+				Sleep(2000);
+				exit(0);
+			}
+		}
+	}
+
+}
+
 int main(int argc, const char * argv[]){
+	parse_input(argc, argv);
+	load_everything(load_filename, load_iteration);
+
 	srand (time(NULL));
 
 	time_t timev;
@@ -695,10 +886,9 @@ int main(int argc, const char * argv[]){
 
 	std::cout.precision(digits);
 
-	mpfr::mpreal r_not = 5.29 * pow(10,-16);
-	mpfr::mpreal v_not = 2.18805743462617 * pow(10,6);
+	mpfr::mpreal r_not = 2.29 * pow(10,-12);
+	mpfr::mpreal v_not = 2.18805743462617 * pow(10,4);
 	mpfr::mpreal new_dist = 0.29 * pow(10,-13);
-
 
 
 	all_particles.push_back(new Proton());
@@ -709,9 +899,12 @@ int main(int argc, const char * argv[]){
 	all_particles[1]->velocity = std::vector<mpfr::mpreal>{0, 0, 0};
 
 	all_particles[1]->position = std::vector<mpfr::mpreal>{r_not, 0, 0};
-	all_particles[1]->velocity = std::vector<mpfr::mpreal>{v_not, 0, 0};
+	all_particles[1]->velocity = std::vector<mpfr::mpreal>{0., v_not, 0};
+
+
 
 	for (uint i = 0; i < all_particles.size(); i++ ){ // calculate new values
+		std::cout << all_particles[i]->position[0] << "<-pos!" << std::endl;
 		Particle* current = all_particles[i];
 		if(current->energy != 0){
 			continue;
