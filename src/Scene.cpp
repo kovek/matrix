@@ -455,6 +455,8 @@ void Scene::reshape(int width, int height)
 }
 
 
+float push_off_factor = 1* pow(10,14);
+
 GLuint trailBufferObject;
 GLuint tvaoObject;
 GLuint trailibuf;
@@ -491,7 +493,151 @@ void Scene::draw()
 
 		glUniformMatrix4fv(objMatrixUniform, 1, GL_FALSE, floats_array);
 
-		glDrawElements(GL_TRIANGLES, sphereSize, GL_UNSIGNED_SHORT, 0);
+		// Central sphere. Origin
+		//glDrawElements(GL_TRIANGLES, sphereSize, GL_UNSIGNED_SHORT, 0);
+	}
+
+	// Draw 3D grid
+	{
+		const float fm = 2.0f;
+
+		const float volume_corners[] = {
+			-1.0f,  -10.0f, -100.0f, 1.0f,
+
+			1.0f,  -10.0f, -100.0f, 1.0f,
+			-1.0f,  10.0f, -100.0f, 1.0f,
+			-1.0f,  -10.0f, 100.0f, 1.0f,
+
+			1.0f,  10.0f, 100.0f, 1.0f,
+
+			-1.0f,  10.0f, 100.0f, 1.0f,
+			1.0f,  -10.0f, 100.0f, 1.0f,
+			1.0f,  10.0f, -100.0f, 1.0f
+		};
+
+		const uint pairs[] = {
+			0, 1,
+			0, 2,
+			0, 3,
+
+			4, 5,
+			4, 6,
+			4, 7,
+
+			1, 6,
+			1, 7,
+
+			3, 5,
+			2, 5,
+
+			6, 3,
+			7, 2
+		};
+
+		for(uint k = 0; k < 12 ; k++){
+			uint beg_corner = pairs[k];
+			uint end_corner = pairs[k+1];
+			float len_lines = 1.0f;
+
+			glm::vec3 beg = glm::vec3 { volume_corners[beg_corner*4]*fm, volume_corners[beg_corner*4+1]*fm, volume_corners[beg_corner*4+2]*fm };
+			glm::vec3 end = glm::vec3 { volume_corners[end_corner*4]*fm, volume_corners[end_corner*4+1]*fm, volume_corners[end_corner*4+2]*fm };
+			glm::mat4 transform = getVectorFromTwoPoints(
+				beg, end);
+
+			glm::mat4 new_mod = glm::mat4(1);
+			new_mod = scale(new_mod, 0, 1, 0);
+			new_mod = rotate(new_mod, pi/2, 0, -pi/2);
+			new_mod = transform*new_mod;
+			new_mod = move(new_mod, 0, 0, 0);
+
+			float floats_array[16] = {0};
+			passDataToArray(new_mod, floats_array);
+
+			glUniformMatrix4fv(objMatrixUniform, 1, GL_FALSE, floats_array);
+
+			glBindVertexArray(linevbo);
+			glUniform3f(offsetUniform, 0, 0, 0);
+
+			glDrawArrays(GL_LINES, 0, 2);
+
+			glUniformMatrix4fv(objMatrixUniform, 1, GL_FALSE, identityMatrix);
+		}
+
+		float dist = 1.0f;
+		float len_lines = 12.5f;
+		uint num_lines = 3;
+
+		for(uint k = 0; k < 3; k++){
+			glm::mat4 transform = getVectorFromTwoPoints(
+				glm::vec3{0, 0, -len_lines/2.0f}, glm::vec3{0, 0, len_lines/2.0f});
+
+			glm::mat4 new_mod = glm::mat4(1);
+			new_mod = scale(new_mod, 0, len_lines, 0);
+			new_mod = rotate(new_mod, pi/2, 0, -pi/2);
+			new_mod = transform*new_mod;
+			new_mod = move(new_mod, 0, 0, -len_lines/2.0f);
+
+			if(k==1){
+				new_mod = rotate(new_mod, pi/2, 0, 0);
+			}else if(k==2){
+				new_mod = rotate(new_mod, 0, pi/2, 0);
+			}
+
+
+			float floats_array[16] = {0};
+			passDataToArray(new_mod, floats_array);
+
+			glUniformMatrix4fv(objMatrixUniform, 1, GL_FALSE, floats_array);
+
+			glBindVertexArray(linevbo);
+			glUniform3f(offsetUniform, 0, 0, 0);
+
+			glDrawArrays(GL_LINES, 0, 2);
+
+			glUniformMatrix4fv(objMatrixUniform, 1, GL_FALSE, identityMatrix);
+
+			/*
+			for(uint i = 0; i < num_lines; i++){
+				for(uint j = 0; j < num_lines; j++){
+					float my_i = i - num_lines/2.0f;
+					float my_j = j - num_lines/2.0f;
+					float my_dist = dist*pow(10, 1-k);
+					float my_length = 1*pow(10, 1-k);
+
+					glm::mat4 transform = getVectorFromTwoPoints(
+						glm::vec3{my_i*dist, my_j*dist, -my_length/2.0f}, glm::vec3{my_i*dist, my_j*dist, my_length/2.0f});
+
+					glm::mat4 new_mod = glm::mat4(1);
+					new_mod = scale(new_mod, 0, my_length, 0);
+					new_mod = rotate(new_mod, pi/2, 0, -pi/2);
+					new_mod = transform*new_mod;
+					new_mod = move(new_mod, my_i*dist, my_j*dist, -my_length/2.0f);
+
+					if(k==1){
+						new_mod = rotate(new_mod, pi/2, 0, 0);
+					}else if(k==2){
+						new_mod = rotate(new_mod, 0, pi/2, 0);
+					}
+
+
+					float floats_array[16] = {0};
+					passDataToArray(new_mod, floats_array);
+
+					glUniformMatrix4fv(objMatrixUniform, 1, GL_FALSE, floats_array);
+
+					glBindVertexArray(linevbo);
+					glUniform3f(offsetUniform, 0, 0, 0);
+
+					glDrawArrays(GL_LINES, 0, 2);
+
+					glUniformMatrix4fv(objMatrixUniform, 1, GL_FALSE, identityMatrix);
+				}
+			}
+			*/
+		}
+
+		//repeat for horizontal
+		//repeat for in/out
 	}
 
 	{
@@ -606,8 +752,8 @@ void Scene::draw()
 
 			float floats_array[16] = {0};
 			glm::mat4 mod = glm::mat4(1.0f);
-			mod = scale(mod, 5/j, 5/j, 5/j);
-			mod = move(mod, (float) (*cur)[0]*pow(10,10), (float) (*cur)[1]*pow(10,10), (float) (*cur)[2]*pow(10,10));
+			mod = scale(mod, 2/j, 2/j, 2/j);
+			mod = move(mod, (float) (*cur)[0]*push_off_factor, (float) (*cur)[1]*push_off_factor, (float) (*cur)[2]*push_off_factor);
 			passDataToArray(mod, floats_array);
 
 			glUniformMatrix4fv(objMatrixUniform, 1, GL_FALSE, floats_array);
@@ -653,15 +799,17 @@ void Scene::draw()
 
 		glBindVertexArray(spherevbo);
 
+		// the bigger this is the smaller the particles appear
+		float scale_factor = 7;
 
 		float floats_array[16] = {0};
 		glm::mat4 mod = glm::mat4(1.0f);
-		mod = scale(mod, 1/7.0f, 1/7.0f, 1/7.0f);
+		mod = scale(mod, 1/scale_factor, 1/scale_factor, 1/scale_factor);
 		passDataToArray(mod, floats_array);
 
 		glUniformMatrix4fv(objMatrixUniform, 1, GL_FALSE, floats_array);
 
-		glUniform3f(offsetUniform, (float)current->position[0]*7*pow(10,10), (float)current->position[1]*7*pow(10,10), (float)current->position[2]*7*pow(10,10));
+		glUniform3f(offsetUniform, (float)current->position[0]*scale_factor*push_off_factor, (float)current->position[1]*scale_factor*push_off_factor, (float)current->position[2]*scale_factor*push_off_factor);
 		glDrawElements(GL_TRIANGLES, sphereSize, GL_UNSIGNED_SHORT, 0);
 		glBindVertexArray(0);
 	}
