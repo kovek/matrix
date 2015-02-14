@@ -3,7 +3,7 @@
 # Tools used during installation:
 # 7z, git, cmake, make, tar, curl.
 
-if [ "$(uname)" == "Darwin" ]; then
+if [ `uname -s | cut -c 1-6` == "Darwin" ]; then
 	# For mac osx
 	ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 	brew install cmake
@@ -28,11 +28,12 @@ cd matrix
 # Create the directory for all the external libraries
 mkdir external
 cd external
+mkdir libs
 
 bash ../scripts/get_glfw.sh
+bash ../scripts/get_glm.sh
 bash ../scripts/get_mpfr.sh
 bash ../scripts/get_glew.sh
-bash ../scripts/get_glm.sh
 
 # Get out of ./external/
 cd .. # We go to root of project

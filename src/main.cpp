@@ -43,7 +43,7 @@ private:
 
 
 const mpfr::mpreal k_e = 8.9875517873681764*pow(10,9);
-const mpfr::mpreal delta_t = 1.667*pow(10,-24)/sqrt(3) * pow(10, -0);
+const mpfr::mpreal delta_t = 1.667*pow(10,-24)/sqrt(3) * pow(10, -2);
 const mpfr::mpreal G =  6.673*pow(10, -11);
 const mpfr::mpreal H =  6.62606957*pow(10, -34);
 const mpfr::mpreal C =  2.99792458*pow(10, 8);
@@ -118,6 +118,26 @@ void compute_new_values() {
 	for (uint i = 0; i < all_particles.size(); i++ ){
 		Particle* current = all_particles[i];
 
+		/*
+		if(i == 1){
+			std::cout << "New iteration" << std::endl;
+			std::cout << "position: " << std::endl
+				<< current->position[0] << std::endl
+				<< current->position[1] << std::endl
+				<< current->position[2] << std::endl;
+
+			std::cout << "velocity: " << std::endl
+				<< current->velocity[0] << std::endl
+				<< current->velocity[1] << std::endl
+				<< current->velocity[2] << std::endl;
+
+			std::cout << "acceleration: " << std::endl
+				<< current->acceleration[0] << std::endl
+				<< current->acceleration[1] << std::endl
+				<< current->acceleration[2] << std::endl;
+		}
+		*/
+
 		current->position[0] += current->velocity[0]*delta_t+0.5*current->acceleration[0]*delta_t*delta_t;
 		current->position[1] += current->velocity[1]*delta_t+0.5*current->acceleration[1]*delta_t*delta_t;
 		current->position[2] += current->velocity[2]*delta_t+0.5*current->acceleration[2]*delta_t*delta_t;
@@ -147,7 +167,7 @@ void compute_new_values() {
 
 			Particle* other = all_particles[j];
 			if(other->energy != 0){
-				continue;
+				//continue;
 			}
 
 			// calculate
@@ -160,7 +180,7 @@ void compute_new_values() {
 
 			// Formula to be optimized (simplified).
 
-			mpfr::mpreal cl_scalar = - k_e * current->charge * other->charge / dist / dist / dist;
+			mpfr::mpreal cl_scalar = k_e * current->charge * other->charge / dist / dist / dist;
 			mpfr::mpreal gravity_scalar = G * current->mass * other-> mass / dist /dist / dist;
 
 			//mpfr::mpreal weak_scalar = -(pow(10, 15) * exp(-dist*pow(10,15) ) )/dist - (exp(-dist*pow(10,15) ))/ dist / dist;
@@ -169,13 +189,13 @@ void compute_new_values() {
 
 			mpfr::mpreal A = (pow(10, a_var) * exp(-dist * pow(10, b_var) ) )/ dist;
 			mpfr::mpreal B =  exp(-dist * pow(10, c_var) )/ pow(dist, 2);
-			mpfr::mpreal A_and_B = A + B;
+			mpfr::mpreal pauli = A + B;
 
 
-
-			std::cout << ">>>" << std::endl;
-			std::cout << cl_scalar << std::endl;
-			std::cout << weak_scalar << std::endl;
+			pauli = 0;
+			weak_scalar = 0;
+			gravity_scalar = 0;
+			//cl_scalar = 0;
 
 
 			std::vector<mpfr::mpreal> delta_vector = std::vector<mpfr::mpreal>{
@@ -184,16 +204,23 @@ void compute_new_values() {
 				other->position[2]-current->position[2]};
 
 			std::vector<mpfr::mpreal> new_force = std::vector<mpfr::mpreal>{
-				(A_and_B + weak_scalar + gravity_scalar + cl_scalar) *delta_vector[0],
-				(A_and_B + weak_scalar + gravity_scalar + cl_scalar) *delta_vector[1],
-				(A_and_B + weak_scalar + gravity_scalar + cl_scalar) *delta_vector[2]};
-			std::cout << new_force[0] << std::endl;
+				(pauli + weak_scalar + gravity_scalar + cl_scalar) *delta_vector[0],
+				(pauli + weak_scalar + gravity_scalar + cl_scalar) *delta_vector[1],
+				(pauli + weak_scalar + gravity_scalar + cl_scalar) *delta_vector[2]};
+
+			std::cout << "weak: "
+				<< weak_scalar << "\n"
+				<< "gravity: "
+				<< gravity_scalar << "\n"
+				<< "magnetic: "
+				<< cl_scalar << "\n"
+				<< "exclusion: "
+				<< pauli << "\n" << std::flush;
 
 			sum_of_all_forces[0] += new_force[0];
 			sum_of_all_forces[1] += new_force[1];
 			sum_of_all_forces[2] += new_force[2];
 
-			std::cout << sum_of_all_forces[0] << std::endl;
 
 
 			/*
@@ -204,9 +231,9 @@ void compute_new_values() {
 			 */
 		}
 		std::vector<mpfr::mpreal> new_acceleration = std::vector<mpfr::mpreal>{
-			sum_of_all_forces[0]/(current->mass*my_gamma( current->velocity[0] )),
-			sum_of_all_forces[1]/(current->mass*my_gamma( current->velocity[1] )),
-			sum_of_all_forces[2]/(current->mass*my_gamma( current->velocity[2] ))};
+			sum_of_all_forces[0]/(current->mass),
+			sum_of_all_forces[1]/(current->mass),
+			sum_of_all_forces[2]/(current->mass)};
 
 
 		current->last_acceleration = current->acceleration;
@@ -520,7 +547,7 @@ void check_conditions(){
 
 void save_everything(){
 	std::string filename = "local/" + times;
-	std::cout << filename << std::endl;
+	//std::cout << filename << std::endl;
 	std::ofstream ofs(filename, std::ofstream::app);
 
 	std::string version = "5";
@@ -596,18 +623,20 @@ int openglmain(int argc, const char * argv[]){
 
     while (!glfwWindowShouldClose(window))
     {
-		std::cout << "New iteration" << std::endl;
+		// std::cout << "New iteration" << std::endl;
 
 		if( paused ){
 			scene.draw();
+			compute_user_input();
 			continue;
 		}
+
+		compute_user_input();
 
 		std::thread compute (compute_new_values);
 
 		std::thread check_cond(check_conditions);
 		std::thread check_E(check_energy);
-		compute_user_input();
 
 		std::thread show_graph(display_graphs);
 
@@ -647,29 +676,25 @@ int main(int argc, const char * argv[]){
     const int digits = 500;
 	mpfr::mpreal::set_default_prec(mpfr::digits2bits(digits));
 
-	std::cout.precision(digits);
+	//std::cout.precision(digits);
 
 	mpfr::mpreal r_not = 5.29 * pow(10,-11);
 	mpfr::mpreal v_not = 2.18805743462617 * pow(10,6);
 	mpfr::mpreal new_dist = 0.29 * pow(10,-13);
 
 	mpfr::mpreal r_nuke = 0.46f * 4 * pow(10,-14);
-
+	mpfr::mpreal r_new = 1.0f * pow(10,-15);
 
 
 	all_particles.push_back(new Proton());
-	all_particles.push_back(new Proton());
-	all_particles.push_back(new Neutron());
+	all_particles.push_back(new Electron());
 
 
 	all_particles[0]->position = std::vector<mpfr::mpreal>{0, 0, 0};
 	all_particles[0]->velocity = std::vector<mpfr::mpreal>{0, 0, 0};
 
-	all_particles[1]->position = std::vector<mpfr::mpreal>{r_nuke, 0, 0};
-	all_particles[1]->velocity = std::vector<mpfr::mpreal>{0, v_not, 0};
-
-	all_particles[2]->position = std::vector<mpfr::mpreal>{r_nuke/1.4f, r_nuke/1.1f, 0};
-	all_particles[2]->velocity = std::vector<mpfr::mpreal>{0, 0, 0};
+	all_particles[1]->position = std::vector<mpfr::mpreal>{r_new, 0, 0};
+	all_particles[1]->velocity = std::vector<mpfr::mpreal>{0, 0, 0};
 
 
 	for (uint i = 0; i < all_particles.size(); i++ ){ // calculate new values
