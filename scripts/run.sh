@@ -1,19 +1,41 @@
-ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
-brew install cmake
-brew install glew
+#!/bin/bash
+
+# Tools used during installation:
+# 7z, git, cmake, make, tar, curl.
+
+if [ "$(uname)" == "Darwin" ]; then
+	# For mac osx
+	ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+	brew install cmake
+	brew install glew # Or should we link the archive instead?
+	brew install p7zip
+
+elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]; then
+	# Linux platform
+	sudo apt-get install p7zip-full
+
+elif [ "$(expr substr $(uname -s) 1 10)" == "MINGW32_NT" ]; then
+	# For windows
+	choco install cmake
+	choco install git
+	choco install 7zip
+fi
+
+# If we do not have the repository yet
 git clone https://github.com/kovek/matrix
 cd matrix
-curl -L http://downloads.sourceforge.net/project/ogl-math/glm-0.9.5.4/glm-0.9.5.4.zip\?r\=http%3A%2F%2Fglm.g-truc.net%2F0.9.5%2Findex.html\&ts\=1415828217\&use_mirror\=iweb > `pwd`/glm.tar.gz
-tar -zxvf glm.tar.gz
-curl -L http://downloads.sourceforge.net/project/glfw/glfw/3.0.4/glfw-3.0.4.zip\?r\=http%3A%2F%2Fwww.glfw.org%2Fdownload.html\&ts\=1415893559\&use_mirror\=softlayer-dal > `pwd`/glfw.tar.gz
-tar -zxvf glfw.tar.gz
-cd glfw-3.0.4
-mkdir build
-cd build
-cmake -DBUILD_SHARED_LIBS=NO ..
-make
-cd ../..
-curl -L http://www.holoborodko.com/pavel/wp-content/plugins/download-monitor/download.php?id=4 > `pwd`/mpfrc++-3.6.1.zip
-mkdir MPFR
-unzip ./mpfrc++-3.6.1.zip -d ./MPFR
+
+# Create the directory for all the external libraries
+mkdir external
+cd external
+
+bash ../scripts/get_glfw.sh
+bash ../scripts/get_mpfr.sh
+bash ../scripts/get_glew.sh
+bash ../scripts/get_glm.sh
+
+# Get out of ./external/
+cd .. # We go to root of project
+
+# Compile the project
 make matrix
