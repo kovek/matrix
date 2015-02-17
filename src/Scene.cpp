@@ -6,7 +6,7 @@
 
 
 #include <stdio.h>
-#include "MPFR/mpreal.h"
+#include <mpreal.h>
 #include "Scene.h"
 #include <iostream>
 #include "particles.h"
@@ -20,10 +20,10 @@
 // these needed for object loader...---------------
 #define GLM_FORCE_RADIANS
 #define GLM_GTX_norm
-#include <glm/glm/glm.hpp>
-#include <glm/glm/gtx/vec1.hpp>
-#include <glm/glm/gtc/matrix_transform.hpp>
-#include <glm/glm/gtc/type_ptr.hpp>
+#include <glm/glm.hpp>
+#include <glm/gtc/vec1.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 // end of the imports needed for object loader...
 
 extern std::vector<Particle *> all_particles;
@@ -369,15 +369,15 @@ Scene::Scene()
 void Scene::init()
 {
 	{ // Load sphere object
-		load_obj("sphere.obj", sphere_vertices, sphere_normals, sphere_elements);
-		load_obj("cone.obj", cone_vertices, cone_normals, cone_elements);
+		load_obj("data/sphere.obj", sphere_vertices, sphere_normals, sphere_elements);
+		load_obj("data/cone.obj", cone_vertices, cone_normals, cone_elements);
 	}
 
 	sphere();
 	cone();
 	line();
 
-    _shaderProgram = createShaderProgramWithFilenames("MatrixPerspective.vert", "StandardColors.frag");
+    _shaderProgram = createShaderProgramWithFilenames("src/glsl/MatrixPerspective.vert", "src/glsl/StandardColors.frag");
     glUseProgram(_shaderProgram);
 
     // Initialize Vertex Buffer
@@ -419,7 +419,7 @@ void Scene::init()
 	viewMatrix[5] = 1;
 	viewMatrix[10] = 1;
 	viewMatrix[15] = 1;
-	viewMatrix[14] = 1;
+	//viewMatrix[14] = 1;
 
 	perspectiveMatrix[0] = frustumScale;
 	perspectiveMatrix[5] = frustumScale;
@@ -596,7 +596,6 @@ void Scene::draw()
 		for(uint k = 0; k < 18; k++){
 			cur++;
 		}
-
 
 		while (cur != end) { // draw particles
 			j -= (float)skip_every_nth;
