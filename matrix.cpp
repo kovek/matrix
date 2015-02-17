@@ -1,6 +1,9 @@
+#include <stdio.h>
+#include "MPFR/mpreal.h"
 #include <vector>
 #include <iostream>
 #include <cmath>
+#include <typeinfo>
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -14,10 +17,28 @@
 #include "Scene.h"
 #include "particles.h"
 
+#include "plplot.h"
+#include "plstream.h"
 
 
-const long double k_e = 8.9875517873681764*pow(10,9);
-const long double delta_t = 1.52l*pow(10, -16)/900l;
+class x00 {
+public:
+    x00( int, const char ** );
+
+private:
+    // Class data
+    static const int NSIZE;
+};
+
+
+
+const mpfr::mpreal k_e = 8.9875517873681764*pow(10,9);
+const mpfr::mpreal delta_t = 1.52l*pow(10, -16)/2500l;
+const mpfr::mpreal G =  6.673*pow(10, -11);
+const mpfr::mpreal H =  6.62606957*pow(10, -34);
+const mpfr::mpreal C =  2.99792458*pow(10, 8);
+
+bool paused = false;
 
 extern float viewMatrix[16];
 
@@ -83,37 +104,44 @@ void compute_new_values() {
 		current->position[1] += current->velocity[1]*delta_t+0.5*current->acceleration[1]*delta_t*delta_t;
 		current->position[2] += current->velocity[2]*delta_t+0.5*current->acceleration[2]*delta_t*delta_t;
 		current->position_back_log.push_back( current->position );
-		if (current->position_back_log.size()>700){ current->position_back_log.pop_front(); }
+		if (current->position_back_log.size()> 2000){ current->position_back_log.pop_front(); }
 
 	}
 
-	for (uint i = 0; i < all_particles.size(); i++ ){ // calculate new values
-		//if (i==1){ continue; } // skip the proton, for now
 
+	for (uint i = 0; i < all_particles.size(); i++ ){ // calculate new values
 		Particle* current = all_particles[i];
-		std::vector<long double> sum_of_all_forces = std::vector<long double>{0,0,0};
+
+
+		std::vector<mpfr::mpreal> sum_of_all_forces = std::vector<mpfr::mpreal>{0,0,0};
 
 		for (uint j = 0; j < all_particles.size(); j++ ){ // calculate new acceleration values
+
+
 			if (i==j){ continue; }
 
 			Particle* other = all_particles[j];
 
+			if(current->wavelength != 0 || other->wavelength != 0){ // that means we're dealing with a photon. don't touch its acceleration...
+				continue;
+			}
+
 			// calculate
 			// all_particles[i]->next_position
 
-			long double dist = sqrt(
+			mpfr::mpreal dist = sqrt(
 				  pow(current->position[0]-other->position[0], 2)
 				+ pow(current->position[1]-other->position[1], 2)
 				+ pow(current->position[2]-other->position[2], 2) );
 
-			long double cl_scalar = - k_e * current->charge * other->charge / dist / dist / dist;
+			mpfr::mpreal cl_scalar = - k_e * current->charge * other->charge / dist / dist / dist;
 
-			std::vector<long double> delta_vector = std::vector<long double>{
+			std::vector<mpfr::mpreal> delta_vector = std::vector<mpfr::mpreal>{
 				other->position[0]-current->position[0],
 				other->position[1]-current->position[1],
 				other->position[2]-current->position[2]};
 
-			std::vector<long double> new_force = std::vector<long double>{
+			std::vector<mpfr::mpreal> new_force = std::vector<mpfr::mpreal>{
 				cl_scalar*delta_vector[0],
 				cl_scalar*delta_vector[1],
 				cl_scalar*delta_vector[2]};
@@ -130,7 +158,7 @@ void compute_new_values() {
 			 << std::endl;
 			 */
 		}
-		std::vector<long double> new_acceleration = std::vector<long double>{
+		std::vector<mpfr::mpreal> new_acceleration = std::vector<mpfr::mpreal>{
 			sum_of_all_forces[0]/current->mass,
 			sum_of_all_forces[1]/current->mass,
 			sum_of_all_forces[2]/current->mass};
@@ -139,6 +167,7 @@ void compute_new_values() {
 		current->last_acceleration = current->acceleration;
 		current->acceleration = new_acceleration;
 	}
+
 	for (uint i = 0; i < all_particles.size(); i++ ){
 		Particle* current = all_particles[i];
 		current->velocity[0] += (current->acceleration[0]+current->last_acceleration[0])/2*delta_t;
@@ -224,6 +253,58 @@ glm::mat4 rotate(glm::mat4 mat, float y, float x, float z) {
 	return out;
 }
 
+x00* x;
+plstream* pls;
+void init_graphs(int argc, const char * argv[]){
+    x = new x00(argc, argv );
+}
+
+const int x00::NSIZE = 101;
+
+x00::x00( int argc, const char **argv ){
+    PLFLT x[NSIZE], y[NSIZE];
+    PLFLT xmin = 0., xmax = 1., ymin = 0., ymax = 10000.;
+    int   i;
+
+    // Prepare data to be plotted.
+    for ( i = 0; i < NSIZE; i++ )
+    {
+        x[i] = (PLFLT) ( i ) / (PLFLT) ( NSIZE - 1 );
+        y[i] = ymax * x[i] * x[i];
+    }
+
+    pls = new plstream();
+
+    // Parse and process command line arguments
+    pls->parseopts( &argc, argv, PL_PARSE_FULL );
+
+    // Initialize plplot
+	pls->sdev("qtwidget");
+    pls->init();
+
+    // Create a labelled box to hold the plot.
+    pls->env( xmin, xmax, ymin, ymax, 0, 0 );
+    pls->lab( "x", "y=100 x#u2#d", "Simple PLplot demo of a 2D line plot" );
+
+	std::cout << pls << std::endl;
+}
+
+PLFLT * xs = new PLFLT[1];
+PLFLT * ys = new PLFLT[1];
+
+PLFLT maxt = 100;
+PLFLT maxe = 100;
+PLFLT currt = 0;
+
+mpfr::mpreal total_energy;
+void display_graphs() {
+	currt += 0.0001f;
+	xs[0] = currt;
+	ys[0] = ((float)total_energy)*10e19;
+
+	pls->poin(1, xs, ys, 1);
+	pls->flush();
+}
 
 void compute_user_input() {
 	//new_perspective_matrix = perspectiveMatrix;
@@ -253,8 +334,13 @@ void compute_user_input() {
 			case GLFW_KEY_F:
 				newMatrix = move(newMatrix, 0, 0.1f, 0);
 				break;
-
-
+			case GLFW_KEY_SPACE:
+				if(!paused){
+					paused = true;
+				}else{
+					paused = false;
+				}
+				break;
 			case GLFW_KEY_UP:
 				newMatrix = rotate(newMatrix, 0, -theta, 0);
 				break;
@@ -281,6 +367,75 @@ void compute_user_input() {
 	scene.updateCamera();
 }
 
+mpfr::mpreal distance(Particle * first, Particle * second){
+	return sqrt(
+		pow(first->position[0]-second->position[0], 2) +
+		pow(first->position[1]-second->position[1], 2) +
+		pow(first->position[2]-second->position[2], 2)
+			);
+}
+mpfr::mpreal norm(std::vector<mpfr::mpreal> vec){
+	return sqrt(
+		pow(vec[0], 2) +
+		pow(vec[1], 2) +
+		pow(vec[2], 2)
+			);
+}
+
+void check_conditions(){
+	// check if any photons are crossing any electrons
+	Particle * current;
+	Particle * other;
+	for(uint i = 0; i < all_particles.size(); i++){
+		current = all_particles[i];
+		for(uint j = 0; j < all_particles.size(); j++){
+			other = all_particles[j];
+			if (i==j){ continue; }
+
+			if( distance(current, other) < current->radius ) {
+				// other interacts with current
+			}
+		}
+	}
+}
+
+void check_energy(){
+	Particle * current;
+	Particle * other;
+	mpfr::mpreal U_g = 0;
+	mpfr::mpreal U_e = 0;
+	mpfr::mpreal K = 0;
+	mpfr::mpreal E = 0;
+	for(uint i = 0; i < all_particles.size(); i++){
+		current = all_particles[i];
+		for(uint j = 0; j < all_particles.size(); j++){
+			other = all_particles[j];
+			if(other == current){ continue; }
+			if(j<=i){ continue; }
+
+			mpfr::mpreal dist = distance(current, other);
+
+			//U_g += -G * current->mass * other->mass / dist;
+			U_e += k_e * current->charge * other->charge / dist;
+
+			if( typeid(current) == typeid(Photon *) ){
+				E += H*C/((Photon *)current)->wavelength;
+			}
+
+		}
+
+		K += 1/2.0 * current->mass * pow(norm(current->velocity), 2);
+	}
+
+	//std::cout << "U_g:" << U_g << std::endl;
+	std::cout << "U_e:" << U_e << std::endl;
+	std::cout << "K:" << K << std::endl;
+	std::cout << "E:" << E << std::endl;
+
+	total_energy = U_g + U_e + K + E;
+	std::cout << "total_energy: " << total_energy << std::endl;
+
+}
 
 int openglmain(int argc, const char * argv[]){
 	glfwSetErrorCallback(onError);
@@ -292,6 +447,7 @@ int openglmain(int argc, const char * argv[]){
     glfwMakeContextCurrent(window);
 
     scene.init();
+	init_graphs(argc, argv);
 
     int windowWidth = 0;
     int windowHeight = 0;
@@ -304,9 +460,13 @@ int openglmain(int argc, const char * argv[]){
 
     while (!glfwWindowShouldClose(window))
     {
-		compute_new_values();
-
+		if( !paused ){
+			compute_new_values();
+		}
+		check_conditions();
+		check_energy();
 		compute_user_input();
+		display_graphs();
 
 		/*
 		 std::cout << all_particles[0]->position[0]
@@ -326,29 +486,34 @@ int openglmain(int argc, const char * argv[]){
     return 0;
 }
 
+int main(int argc, const char * argv[]){
+	// PARTEYYYY
+	// We are working with `digits` long numbers now hehe.
+    const int digits = 500;
+	mpfr::mpreal::set_default_prec(mpfr::digits2bits(digits));
 
-int main(){
+	std::cout.precision(digits);
 
-	long double r_not = 5.29 * pow(10,-11);
-	long double v_not = 2.18805743462617 * pow(10,6);
-	v_not *= 1.3f;
+	mpfr::mpreal r_not = 5.29 * pow(10,-11);
+	mpfr::mpreal v_not = 2.18805743462617 * pow(10,6);
+
 
 	all_particles.push_back(new Proton());
 	all_particles.push_back(new Proton());
 	all_particles.push_back(new Electron());
 	all_particles.push_back(new Electron());
 
-	all_particles[0]->position = std::vector<long double>{0.1*r_not, 0, 0};
-	all_particles[0]->velocity = std::vector<long double>{0, 0, 0};
+	all_particles[0]->position = std::vector<mpfr::mpreal>{0.1*r_not, 0, 0};
+	all_particles[0]->velocity = std::vector<mpfr::mpreal>{0, 0, 0};
 
-	all_particles[1]->position = std::vector<long double>{-0.1*r_not, 0, 0};
-	all_particles[1]->velocity = std::vector<long double>{0, 0, 0};
+	all_particles[1]->position = std::vector<mpfr::mpreal>{-0.1*r_not, 0, 0};
+	all_particles[1]->velocity = std::vector<mpfr::mpreal>{0, 0, 0};
 
-	all_particles[2]->position = std::vector<long double>{r_not, 0, 0};
-	all_particles[2]->velocity = std::vector<long double>{0, -v_not, 0};
+	all_particles[2]->position = std::vector<mpfr::mpreal>{r_not, 0, 0};
+	all_particles[2]->velocity = std::vector<mpfr::mpreal>{0, -v_not, 0};
 
-	all_particles[3]->position = std::vector<long double>{-r_not, 0, 0};
-	all_particles[3]->velocity = std::vector<long double>{0, v_not, 0};
+	all_particles[3]->position = std::vector<mpfr::mpreal>{-r_not, 0, 0};
+	all_particles[3]->velocity = std::vector<mpfr::mpreal>{0, v_not, 0};
 
 	for (uint i = 0; i < all_particles.size(); i++ ){ // calculate new values
 
@@ -362,19 +527,19 @@ int main(){
 			// calculate
 			// all_particles[i]->next_position
 
-			long double dist = sqrt(
+			mpfr::mpreal dist = sqrt(
 				  pow(current->position[0]-other->position[0], 2)
 				+ pow(current->position[1]-other->position[1], 2)
 				+ pow(current->position[2]-other->position[2], 2) );
 
-			long double cl_scalar = - k_e * current->charge * other->charge / dist / dist / current->mass / dist;
+			mpfr::mpreal cl_scalar = - k_e * current->charge * other->charge / dist / dist / current->mass / dist;
 
-			std::vector<long double> delta_vector = std::vector<long double>{
+			std::vector<mpfr::mpreal> delta_vector = std::vector<mpfr::mpreal>{
 				other->position[0]-current->position[0],
 				other->position[1]-current->position[1],
 				other->position[2]-current->position[2]};
 
-			std::vector<long double> new_acceleration = std::vector<long double>{
+			std::vector<mpfr::mpreal> new_acceleration = std::vector<mpfr::mpreal>{
 				cl_scalar*delta_vector[0],
 				cl_scalar*delta_vector[1],
 				cl_scalar*delta_vector[2]};
@@ -395,7 +560,11 @@ int main(){
 
 	//return 0;
 
-	openglmain(0, NULL);
+	openglmain(argc, argv);
+
+	// Destroy the graphs window setup.
+	//delete pls;
+    //delete x;
 
 	return 0;
 }
