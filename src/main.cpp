@@ -10,6 +10,7 @@
 #include <GLFW/glfw3.h>
 
 #define GLM_FORCE_RADIANS
+#define null_callback NULL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -26,14 +27,21 @@
 
 #include "Scene.h"
 #include "particles.h"
+#include "initialize.h"
 #include <string>
 #include <thread>
 #include <time.h>
 #include <regex>
 #include <boost/algorithm/string.hpp>
 #include "md5.h"
+#include <sqlite3.h>
 
 std::string times;
+bool followup_exists = false;
+std::string load_filename;
+std::string load_iteration;
+void load_everything(std::string filename, std::string iteration);
+std::string current_commit;
 
 
 class x00 {
@@ -48,7 +56,7 @@ private:
 
 
 const mpfr::mpreal k_e = 8.9875517873681764*pow(10,9);
-const mpfr::mpreal delta_t = 1.52l*pow(10, -15)/500l;
+const mpfr::mpreal delta_t = 1.52l*pow(10, -15)/22500l;
 const mpfr::mpreal G =  6.673*pow(10, -11);
 const mpfr::mpreal H =  6.62606957*pow(10, -34);
 const mpfr::mpreal C =  2.99792458*pow(10, 8);
@@ -114,8 +122,16 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
     }
 }
 
-
 void compute_new_values() {
+	std::cout << load_iteration << std::endl;
+	if (followup_exists){
+		load_everything(load_filename, load_iteration);
+		std::cout << "NOT COMPUTING SHIT!" << std::endl;
+		return;
+	}
+
+	std::cout << "Number of particles: " << all_particles.size() << std::endl;
+
 	// Compute new position
 	for (uint i = 0; i < all_particles.size(); i++ ){
 		Particle* current = all_particles[i];
@@ -190,6 +206,7 @@ void compute_new_values() {
 			sum_of_all_forces[2] += new_force[2];
 
 
+			std::cout << "SUP!" << std::endl;
 			std::cout << all_particles[i]->position[0] << " "
 				<< all_particles[i]->position[1] << " "
 				<< all_particles[i]->position[2] << " "
@@ -409,7 +426,7 @@ x00::x00( int argc, const char **argv ){
     pls = new plstream();
 
     // Parse and process command line arguments
-    pls->parseopts( &argc, argv, PL_PARSE_FULL );
+    // pls->parseopts( &argc, argv, PL_PARSE_FULL );
 
     // Initialize plplot
 	pls->sdev("qtwidget");
@@ -455,7 +472,7 @@ void create_photons(){
 				all_particles.back()->position = all_particles[i]->position;
 				all_particles.back()->energy = 1.0;
 
-				std::cout << all_particles.size() << std::endl;
+				//std::cout << all_particles.size() << std::endl;
 			}
 		}
 	}
@@ -575,6 +592,28 @@ void save_everything(){
 	}
 }
 
+std::string get_blob(){
+    std::ostringstream oss("");
+
+	{
+		boost::archive::text_oarchive oa{oss};
+		oa << all_particles;
+	}
+
+    return oss.str();
+}
+
+void load_blob(std::string initial_cond){
+    std::vector<Particle *> my_particles;
+	{
+		std::istringstream my_blob_container(initial_cond);
+		boost::archive::text_iarchive ia{my_blob_container};
+		ia >> my_particles;
+	}
+
+    all_particles = my_particles;
+}
+
 class gps_position
 {
 	private:
@@ -599,29 +638,30 @@ class gps_position
 std::string return_match_string(std::string source, std::string expression){
 	std::smatch m;
 	std::regex e(expression);
-	if(std::regex_search(source, m, e){
+	if(std::regex_search(source, m, e)){
 		return (std::string)m[1];
 	}else{
-		return std::string;
+		return std::string();
 	}
 }
 
 std::string get_current_commit(){
-	std::string commit_hash = return_match_string(filename, "^(.*)\/.*$");
+	FILE * output = popen("git describe --abbrev=0 --always", "r");
 
-	FILE * output = popen("git", "describe", "--abbrev=0", "--always");
 	if(!output){
 		// couldn't get output from syscall.
-		return false;
+        throw std::runtime_error("Could not get the commit hash");
 	}
 
-	std::string current_commit_hash;
-	fgets(&current_commit_hash, 41, output);
-}
-bool correct_commit_hash(std::string filename){
-	std::string current_commit_hash = get_current_commit();
+	char current_commit_hash[41];
+	fgets(current_commit_hash, 41, output); // moves output to variable
 
-	if (commit_hash == current_commit_hash){
+    return std::string(current_commit_hash);
+}
+
+bool correct_commit_hash(std::string commit_hash){
+
+	if (commit_hash == current_commit){
 		return true;
 	}
 
@@ -630,75 +670,153 @@ bool correct_commit_hash(std::string filename){
 
 // Fuck sqlite and how it is implemented in c++
 std::string sqlite_initial_condition_result;
-static int callback(void *NotUsed, int argc, char **argv, char **azColName){
+int callback(void *NotUsed, int argc, char **argv, char **azColName){
 	sqlite_initial_condition_result = argv[0];
+    return 0;
 }
+
+uint parent_id = 0;
 
 std::string get_initial_condition_string(std::string filename, std::string iteration){
 	sqlite3 * db;
 	char *errmsg = 0;
 	int rc;
 
-	rc = sqlite3_open(filename, &db);
+	rc = sqlite3_open(filename.c_str(), &db);
 	if(rc){
-		std::cout << "Couldn't open db" << std::endl;
-		return;
+        throw std::runtime_error("Couldn't open db");
 	}
 
-	std::string sql = "SELECT conditions FROM data WHERE iteration="+iteration+";";
-	rc = sqlite3_exec(db, sql, callback, 0, &errmsg);
+	std::string sql = "SELECT data FROM timeline WHERE id=" + iteration + ";";
+
+	rc = sqlite3_exec(db, sql.c_str(), callback, 0, &errmsg);
 	if (rc != SQLITE_OK){
-		std::cout << "Coudn't call sql" << std::endl;
-		return;
+		std::cout << sql << std::endl;
+		std::cout << "filename: " << filename << std::endl;
+        throw std::runtime_error("Couldn't call sql");
 	}
 	sqlite3_close(db);
-	return *sqlite_initial_condition_result;
+
+	parent_id = atoi(iteration.c_str());
+
+	return sqlite_initial_condition_result;
 }
 
-std::string save_information(){
-	std::string filename = get_current_commit() "/" initial_conditions_hash;
+bool is_file_exist(const char *fileName) {
+    std::ifstream infile(fileName);
+    return infile.good();
+}
+
+std::string initial_cond_hash(){
+	FILE * pFile;
+	char contents[100000];
+
+	pFile = fopen("src/initialize.cpp", "r");
+	if (pFile == NULL) { perror("Error opening file"); }
+	else {
+		fgets(contents, 100000, pFile);
+	}
+
+	std::string filecontents = std::string(contents);
+	std::string hash = md5(filecontents);
+	return std::string(hash);
+}
+
+void save_information(){
+    system( ("mkdir local/" + current_commit).c_str() );
+
+    std::string initial_conditions_hash = initial_cond_hash();
+
+    std::string filename = "local/" + current_commit + "/" + initial_conditions_hash;
+
+    if(!is_file_exist(filename.c_str())){
+		std::cout << "file exists" << std::endl;
+		system( ("cp local/template " + filename).c_str() );
+    }
 
 	sqlite3 * db;
 	char *errmsg = 0;
 	int rc;
 
-	rc = sqlite3_open(filename, &db);
+	rc = sqlite3_open(filename.c_str(), &db);
 	if(rc){
-		std::cout << "Couldn't open db" << std::endl;
-		return;
+		throw std::runtime_error("Couldn't open db" );
 	}
 
-	std::string sql = "INSERT INTO data ";
-	rc = sqlite3_exec(db, sql, callback, 0, &errmsg);
-	if (rc != SQLITE_OK){
-		std::cout << "Coudn't call sql" << std::endl;
-		return;
-	}
+
+    std::string blob = get_blob();
+
+    std::string sql = "INSERT INTO timeline (id, parent, data) VALUES (NULL, " +
+      std::to_string(parent_id) + ", \"" +
+      blob +
+    "\");";
+
+    rc = sqlite3_exec(db, sql.c_str(), null_callback, 0, &errmsg);
+    if (rc != SQLITE_OK){
+		std::cout << sql << std::endl;
+        throw std::runtime_error("Coudn't call sql" );
+    }
+
+    parent_id = sqlite3_last_insert_rowid(db);
 
 	sqlite3_close(db);
-	return *sqlite_initial_condition_result;
+}
+
+
+int followup_callback(void *NotUsed, int argc, char **argv, char **azColName){
+	std::cout << "argv: " << argv[0] << std::endl;
+	if(argv[0] != NULL && argv[0][0] != (char)0){
+		followup_exists = true;
+	}else{
+		followup_exists = false;
+	}
+
+	return 0;
+}
+
+void check_if_followup_exists(std::string filename, std::string iteration){
+	sqlite3 * db;
+	char *errmsg = 0;
+	int rc;
+
+	rc = sqlite3_open(filename.c_str(), &db);
+	if(rc){
+		throw std::runtime_error("Couldn't open db" );
+	}
+
+	iteration = std::to_string(atoi(iteration.c_str()) + 1);
+	load_iteration = iteration;
+	parent_id = atoi(load_iteration.c_str());
+
+    std::string sql = "SELECT id FROM timeline WHERE id=" + iteration + ";";
+
+    rc = sqlite3_exec(db, sql.c_str(), followup_callback, 0, &errmsg);
+
+    if (rc != SQLITE_OK){
+		std::cout << sql << std::endl;
+        throw std::runtime_error("Coudn't call sql" );
+    }
+
+	sqlite3_close(db);
 }
 
 void load_everything(std::string filename, std::string iteration){
-	std::string commit_hash = return_match_string(filename, "^(.*)\/.*$");
 
+	std::string commit_hash = return_match_string(filename, "^local\\/(.*)\\/.*$");
+
+    // Just making sure we are executing the right data.
 	if(!correct_commit_hash(commit_hash)){
-		return;
+        // Forget about this for now...
+		// return;
 	}
 
-	// load sqlite db
-	std::initial_cond = get_initial_condition_string(filename, iteration);
+	get_initial_condition_string(filename, iteration);
 
-	std::cout << "HERE" << initial_cond << std::endl;
+    load_blob(sqlite_initial_condition_result);
 
-	{
-		std::istringstream needed_information_stream(initial_cond);
-		boost::archive::text_iarchive ia{needed_information_stream};
-		std::vector<Particle *> my_particles;
-		ia >> my_particles;
-		ifs.close();
-	}
+	check_if_followup_exists(filename, iteration);
 }
+
 
 // Convert initial conditions file to hash
 // Save that file with "commit_hash/hash" as the filename
@@ -807,7 +925,10 @@ int openglmain(int argc, const char * argv[]){
 
 		//create_photons();
 
-		std::thread save_log(save_everything);
+		std::thread save_log;
+		if(!followup_exists){
+			save_log = std::thread(save_information);
+		}
 		//*/
 
 		/*
@@ -834,12 +955,15 @@ int openglmain(int argc, const char * argv[]){
 		check_cond.join();
 		check_E.join();
 		show_graph.join();
-		save_log.join();
+
+		if(!followup_exists){
+			save_log.join();
+		}
 		//draw_thread.join();
 		//*/
 
 		timestamp2 = clock();
-		std::cout << timestamp2 - timestamp << " " << std::flush;
+		//std::cout << timestamp2 - timestamp << " " << std::flush;
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -850,28 +974,19 @@ int openglmain(int argc, const char * argv[]){
     return 0;
 }
 
-std::string load_filename;
-std::string load_iteration;
 void parse_input(int argc, const char * argv[]){
 	for (int i = 1; i < argc; i++) {
-		if (i + 1 != argc) // Check that we haven't finished parsing already
-			if (argv[i] == "-h") {
-				load_filename = argv[i + 1];
-			} else if (argv[i] == "-i") {
-				load_iteration = argv[i + 1];
-			} else {
-				std::cout << "Not enough or invalid arguments, please try again.\n";
-				Sleep(2000);
-				exit(0);
-			}
-		}
-	}
-
+        if ( strcmp(argv[i], "-h") == 0 ) {
+            load_filename = argv[i + 1];
+        } else if ( strcmp(argv[i], "-i") == 0 ) {
+            load_iteration = argv[i + 1];
+        }
+    }
 }
 
 int main(int argc, const char * argv[]){
+	current_commit = get_current_commit();
 	parse_input(argc, argv);
-	load_everything(load_filename, load_iteration);
 
 	srand (time(NULL));
 
@@ -886,20 +1001,20 @@ int main(int argc, const char * argv[]){
 
 	std::cout.precision(digits);
 
-	mpfr::mpreal r_not = 2.29 * pow(10,-12);
-	mpfr::mpreal v_not = 2.18805743462617 * pow(10,4);
-	mpfr::mpreal new_dist = 0.29 * pow(10,-13);
-
-
-	all_particles.push_back(new Proton());
-	all_particles.push_back(new Electron());
-
-
-	all_particles[1]->position = std::vector<mpfr::mpreal>{0, 0, 0};
-	all_particles[1]->velocity = std::vector<mpfr::mpreal>{0, 0, 0};
-
-	all_particles[1]->position = std::vector<mpfr::mpreal>{r_not, 0, 0};
-	all_particles[1]->velocity = std::vector<mpfr::mpreal>{0., v_not, 0};
+    if(!load_filename.empty() && !load_iteration.empty()){
+      load_everything(load_filename, load_iteration);
+	  std::cout << "LOADING " << std::endl;
+    }else{
+		try{
+			std::cout << "auto load " << std::endl;
+			load_everything("local/"+current_commit+"/"+initial_cond_hash(), "1");
+		} catch(std::exception e){
+			initialize(all_particles);
+			std::cout << "NOT LOADING " << std::endl;
+			std::cout << load_filename << std::endl;
+			std::cout << load_iteration << std::endl;
+		}
+	}
 
 
 
