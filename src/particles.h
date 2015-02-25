@@ -40,10 +40,13 @@ struct Particle {
 			ar & position;
 			ar & velocity;
 			ar & acceleration;
+			ar & last_acceleration;
+			ar & last_velocity;
 		}
 
 
 	public:
+		virtual ~Particle(){}
 		mpfr::mpreal mass;
 		mpfr::mpreal mass_ev;
 		mpfr::mpreal charge;
@@ -63,8 +66,16 @@ struct Particle {
 };
 
 struct Electron: public Particle {
+	private:
+		friend class boost::serialization::access;
+		template<class Archive>
+		void serialize(Archive & ar, const unsigned int version) {
+			// method 1 : invoke base class serialization
+			ar & boost::serialization::base_object<Particle>(*this);
+		}
 	public:
 		Electron(){
+			std::cout << "test!!!" << std::endl;
 			mass_ev = 0.510998928l; // in MeV/c^2
 			mass = 9.11l*pow(10,-31); // in kg
 			charge = -1.602176565l*pow(10,-19); // in Coulombs
@@ -75,8 +86,16 @@ struct Electron: public Particle {
 };
 
 struct Proton: public Particle {
+	private:
+		friend class boost::serialization::access;
+		template<class Archive>
+		void serialize(Archive & ar, const unsigned int version) {
+			// method 1 : invoke base class serialization
+			ar & boost::serialization::base_object<Particle>(*this);
+		}
 	public:
 		Proton(){
+			std::cout << "test!! this is proton!!" << std::endl;
 			mass_ev = 938.272046; // in MeV/c^2
 			mass = 1.672621777 * pow(10,-27); // in kg
 			charge = 1.602176565*pow(10,-19); // in Coulombs

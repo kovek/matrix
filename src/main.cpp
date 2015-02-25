@@ -36,6 +36,11 @@
 #include "md5.h"
 #include <sqlite3.h>
 
+#include <boost/serialization/export.hpp>
+BOOST_CLASS_EXPORT_GUID(Proton, "Proton")
+BOOST_CLASS_EXPORT_GUID(Electron, "Electron")
+BOOST_CLASS_EXPORT_GUID(Neutron, "Neutron")
+
 std::string times;
 bool followup_exists = false;
 std::string load_filename;
@@ -97,7 +102,6 @@ void onFramebufferResize(GLFWwindow* window, int width, int height)
 {
     scene.reshape(width, height);
     glfwSwapBuffers(window);
-
 }
 
 mpfr::mpreal my_gamma(mpfr::mpreal velocity){
@@ -124,6 +128,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 
 void compute_new_values() {
 	std::cout << load_iteration << std::endl;
+	std::cout << "acc_x: " << all_particles[0]->last_acceleration[0] << std::endl;
 	if (followup_exists){
 		load_everything(load_filename, load_iteration);
 		std::cout << "NOT COMPUTING SHIT!" << std::endl;
@@ -220,6 +225,15 @@ void compute_new_values() {
 
 		current->last_acceleration = current->acceleration;
 		current->acceleration = new_acceleration;
+
+		std::cout << "Last acceleration then acceleration then mass: " << std::endl;
+		std::cout << current->last_acceleration[0] << std::endl;
+		std::cout << current->last_acceleration[1] << std::endl;
+		std::cout << current->last_acceleration[2] << std::endl;
+		std::cout << current->acceleration[0] << std::endl;
+		std::cout << current->acceleration[1] << std::endl;
+		std::cout << current->acceleration[2] << std::endl;
+		std::cout << "mass" << current->mass_ev << std::endl;
 	}
 
 	for (uint i = 0; i < all_particles.size(); i++ ){
@@ -597,6 +611,12 @@ std::string get_blob(){
 
 	{
 		boost::archive::text_oarchive oa{oss};
+
+		// This tells boost that we need to use the proper class
+		oa.template register_type<Proton>();
+		oa.template register_type<Electron>();
+		oa.template register_type<Neutron>();
+
 		oa << all_particles;
 	}
 
@@ -608,6 +628,12 @@ void load_blob(std::string initial_cond){
 	{
 		std::istringstream my_blob_container(initial_cond);
 		boost::archive::text_iarchive ia{my_blob_container};
+
+		// This tells boost that we need to use the proper class
+		ia.template register_type<Proton>();
+		ia.template register_type<Electron>();
+		ia.template register_type<Neutron>();
+
 		ia >> my_particles;
 	}
 
@@ -729,10 +755,8 @@ void save_information(){
 
     std::string filename = "local/" + current_commit + "/" + initial_conditions_hash;
 
-    if(!is_file_exist(filename.c_str())){
-		std::cout << "file exists" << std::endl;
-		system( ("cp local/template " + filename).c_str() );
-    }
+	std::cout << "checking for " << filename << std::endl;
+	system( std::string("echo `ls local/93eb4ce2ea1c00fdcb9e6513a1f9a342d71e4b9d`").c_str() );
 
 	sqlite3 * db;
 	char *errmsg = 0;
@@ -765,9 +789,12 @@ void save_information(){
 
 int followup_callback(void *NotUsed, int argc, char **argv, char **azColName){
 	std::cout << "argv: " << argv[0] << std::endl;
+	std::cout << " in it! " << std::endl;
 	if(argv[0] != NULL && argv[0][0] != (char)0){
+		std::cout << "followup exists" << std::endl;
 		followup_exists = true;
 	}else{
+		std::cout << "followup does not exist" << std::endl;
 		followup_exists = false;
 	}
 
@@ -790,6 +817,7 @@ void check_if_followup_exists(std::string filename, std::string iteration){
 
     std::string sql = "SELECT id FROM timeline WHERE id=" + iteration + ";";
 
+	followup_exists = false;
     rc = sqlite3_exec(db, sql.c_str(), followup_callback, 0, &errmsg);
 
     if (rc != SQLITE_OK){
@@ -801,6 +829,7 @@ void check_if_followup_exists(std::string filename, std::string iteration){
 }
 
 void load_everything(std::string filename, std::string iteration){
+	std::cout << "in load_everything. iteration: " << iteration << std::endl;
 
 	std::string commit_hash = return_match_string(filename, "^local\\/(.*)\\/.*$");
 
@@ -814,6 +843,7 @@ void load_everything(std::string filename, std::string iteration){
 
     load_blob(sqlite_initial_condition_result);
 
+	std::cout << "Checking" << std::endl;
 	check_if_followup_exists(filename, iteration);
 }
 
@@ -908,6 +938,7 @@ int openglmain(int argc, const char * argv[]){
 
 		if( paused ){
 			scene.draw();
+			compute_user_input();
 			continue;
 		}
 
@@ -919,14 +950,15 @@ int openglmain(int argc, const char * argv[]){
 
 		std::thread check_cond(check_conditions);
 		std::thread check_E(check_energy);
-		compute_user_input();
 
 		std::thread show_graph(display_graphs);
+		compute_user_input();
 
 		//create_photons();
 
 		std::thread save_log;
 		if(!followup_exists){
+			std::cout << "spawning thread" << std::endl;
 			save_log = std::thread(save_information);
 		}
 		//*/
@@ -956,7 +988,7 @@ int openglmain(int argc, const char * argv[]){
 		check_E.join();
 		show_graph.join();
 
-		if(!followup_exists){
+		if(!followup_exists && save_log.joinable()){
 			save_log.join();
 		}
 		//draw_thread.join();
@@ -988,6 +1020,13 @@ int main(int argc, const char * argv[]){
 	current_commit = get_current_commit();
 	parse_input(argc, argv);
 
+	std::string filename_temp = "local/"+current_commit+"/"+initial_cond_hash();
+    if(!is_file_exist(filename_temp.c_str())){
+		std::cout << "file does not exist" << std::endl;
+		system( ("mkdir local/" + current_commit).c_str() );
+		system( ("cp local/template " + filename_temp).c_str() );
+    }
+
 	srand (time(NULL));
 
 	time_t timev;
@@ -1007,7 +1046,9 @@ int main(int argc, const char * argv[]){
     }else{
 		try{
 			std::cout << "auto load " << std::endl;
-			load_everything("local/"+current_commit+"/"+initial_cond_hash(), "1");
+			load_filename = "local/"+current_commit+"/"+initial_cond_hash();
+			load_iteration = "1";
+			load_everything(load_filename, load_iteration);
 		} catch(std::exception e){
 			initialize(all_particles);
 			std::cout << "NOT LOADING " << std::endl;
@@ -1019,7 +1060,6 @@ int main(int argc, const char * argv[]){
 
 
 	for (uint i = 0; i < all_particles.size(); i++ ){ // calculate new values
-		std::cout << all_particles[i]->position[0] << "<-pos!" << std::endl;
 		Particle* current = all_particles[i];
 		if(current->energy != 0){
 			continue;

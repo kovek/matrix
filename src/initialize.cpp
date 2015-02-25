@@ -15,6 +15,6 @@ void initialize(std::vector<Particle *> & all_particles){
 	all_particles[0]->position = std::vector<mpfr::mpreal>{0, 0, 0};
 	all_particles[0]->velocity = std::vector<mpfr::mpreal>{0, 0, 0};
 
-	all_particles[1]->position = std::vector<mpfr::mpreal>{r_not, 0, 0};
-	all_particles[1]->velocity = std::vector<mpfr::mpreal>{0, v_not, 0};
+	all_particles[1]->position = std::vector<mpfr::mpreal>{r_not, r_not, r_not};
+	all_particles[1]->velocity = std::vector<mpfr::mpreal>{0, 0, 0};
 }
