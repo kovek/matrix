@@ -76,7 +76,7 @@ struct Electron: public Particle {
 	public:
 		Electron(){
 			std::cout << "test!!!" << std::endl;
-			mass_ev = 0.510998928l; // in MeV/c^2
+			//mass_ev = 0.510998928l; // in MeV/c^2
 			mass = 9.11l*pow(10,-31); // in kg
 			charge = -1.602176565l*pow(10,-19); // in Coulombs
 			radius = 0; // Doesn't matter

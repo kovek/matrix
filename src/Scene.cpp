@@ -34,6 +34,12 @@ extern glm::mat4 scale(glm::mat4 mat, float x, float y, float z);
 extern void passDataToArray(glm::mat4 matrix, float* my_array);
 extern float identityMatrix[16];
 
+// push_off factor = 1 unit distance for particles. (smaler = more zoomed out)
+float push_off_factor = 10* pow(10,9);
+
+// The bigger the scale_factor, the smaller our particles appear.
+float scale_factor = 1.0f/0.1;
+
 
 const float vertexData[] = {
     -0.05f,  0.0f, -0.0f, 1.0f,
@@ -486,7 +492,7 @@ void Scene::draw()
 		glUniform3f(offsetUniform, 0, 0, 0);
 
 		glm::mat4 mod = glm::mat4(1.0f);
-		mod = scale(mod, 1/7.0f, 1/7.0f, 1/7.0f);
+		mod = scale(mod, 1/27.0f, 1/27.0f, 1/27.0f);
 		passDataToArray(mod, floats_array);
 
 		glUniformMatrix4fv(objMatrixUniform, 1, GL_FALSE, floats_array);
@@ -606,8 +612,8 @@ void Scene::draw()
 
 			float floats_array[16] = {0};
 			glm::mat4 mod = glm::mat4(1.0f);
-			mod = scale(mod, 5/j, 5/j, 5/j);
-			mod = move(mod, (float) (*cur)[0]*pow(10,10), (float) (*cur)[1]*pow(10,10), (float) (*cur)[2]*pow(10,10));
+			mod = scale(mod, 2/j, 2/j, 2/j);
+			mod = move(mod, (float) (*cur)[0]*push_off_factor, (float) (*cur)[1]*push_off_factor, (float) (*cur)[2]*push_off_factor);
 			passDataToArray(mod, floats_array);
 
 			glUniformMatrix4fv(objMatrixUniform, 1, GL_FALSE, floats_array);
@@ -654,14 +660,15 @@ void Scene::draw()
 		glBindVertexArray(spherevbo);
 
 
+
 		float floats_array[16] = {0};
 		glm::mat4 mod = glm::mat4(1.0f);
-		mod = scale(mod, 1/7.0f, 1/7.0f, 1/7.0f);
+		mod = scale(mod, 1/scale_factor, 1/scale_factor, 1/scale_factor);
 		passDataToArray(mod, floats_array);
 
 		glUniformMatrix4fv(objMatrixUniform, 1, GL_FALSE, floats_array);
 
-		glUniform3f(offsetUniform, (float)current->position[0]*7*pow(10,10), (float)current->position[1]*7*pow(10,10), (float)current->position[2]*7*pow(10,10));
+		glUniform3f(offsetUniform, (float)current->position[0]*scale_factor*push_off_factor, (float)current->position[1]*scale_factor*push_off_factor, (float)current->position[2]*scale_factor*push_off_factor);
 		glDrawElements(GL_TRIANGLES, sphereSize, GL_UNSIGNED_SHORT, 0);
 		glBindVertexArray(0);
 	}

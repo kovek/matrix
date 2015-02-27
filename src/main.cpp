@@ -61,7 +61,7 @@ private:
 
 
 const mpfr::mpreal k_e = 8.9875517873681764*pow(10,9);
-const mpfr::mpreal delta_t = 1.52l*pow(10, -15)/22500l;
+const mpfr::mpreal delta_t = 1.52l*pow(10, -17)/180;
 const mpfr::mpreal G =  6.673*pow(10, -11);
 const mpfr::mpreal H =  6.62606957*pow(10, -34);
 const mpfr::mpreal C =  2.99792458*pow(10, 8);
@@ -104,9 +104,11 @@ void onFramebufferResize(GLFWwindow* window, int width, int height)
     glfwSwapBuffers(window);
 }
 
+/*
 mpfr::mpreal my_gamma(mpfr::mpreal velocity){
 	return 1.0f/sqrt(1 - pow(velocity/C, 2) );
 }
+*/
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
@@ -141,11 +143,12 @@ void compute_new_values() {
 	for (uint i = 0; i < all_particles.size(); i++ ){
 		Particle* current = all_particles[i];
 
+		std::cout << "should move by: " << current->velocity[0]*delta_t+0.5*current->acceleration[0]*delta_t*delta_t << std::endl;
 		current->position[0] += current->velocity[0]*delta_t+0.5*current->acceleration[0]*delta_t*delta_t;
 		current->position[1] += current->velocity[1]*delta_t+0.5*current->acceleration[1]*delta_t*delta_t;
 		current->position[2] += current->velocity[2]*delta_t+0.5*current->acceleration[2]*delta_t*delta_t;
 		current->position_back_log.push_back( current->position );
-		if (current->position_back_log.size()> 50){ current->position_back_log.pop_front(); }
+		if (current->position_back_log.size()> 500){ current->position_back_log.pop_front(); }
 
 		/*
 		std::cout << ">>" << std::endl;
@@ -195,6 +198,7 @@ void compute_new_values() {
 			cl_scalar = 0;
 			gravity_scalar = 0;
 			*/
+			//awe_scalar = 0;
 
 			std::vector<mpfr::mpreal> delta_vector = std::vector<mpfr::mpreal>{
 				other->position[0]-current->position[0],
@@ -218,9 +222,9 @@ void compute_new_values() {
 			 << std::endl;
 		}
 		std::vector<mpfr::mpreal> new_acceleration = std::vector<mpfr::mpreal>{
-			sum_of_all_forces[0]/(current->mass*my_gamma( current->velocity[0] )),
-			sum_of_all_forces[1]/(current->mass*my_gamma( current->velocity[1] )),
-			sum_of_all_forces[2]/(current->mass*my_gamma( current->velocity[2] ))};
+			sum_of_all_forces[0]/(current->mass),
+			sum_of_all_forces[1]/(current->mass),
+			sum_of_all_forces[2]/(current->mass)};
 
 
 		current->last_acceleration = current->acceleration;
@@ -233,7 +237,9 @@ void compute_new_values() {
 		std::cout << current->acceleration[0] << std::endl;
 		std::cout << current->acceleration[1] << std::endl;
 		std::cout << current->acceleration[2] << std::endl;
-		std::cout << "mass" << current->mass_ev << std::endl;
+		std::cout << current->velocity[0] << std::endl;
+		std::cout << current->velocity[1] << std::endl;
+		std::cout << current->velocity[2] << std::endl;
 	}
 
 	for (uint i = 0; i < all_particles.size(); i++ ){
@@ -255,87 +261,14 @@ void compute_new_values() {
 			initial_velocity[2] + (current->acceleration[2]+current->last_acceleration[2])/2*delta_t
 		};
 
+		current->velocity = final_velocity;
+
 		/*
 		std::cout <<
 			">>>" << std::endl
 			<< current->velocity[0]/C << std::endl
 			<< current->velocity[1]/C << std::endl
 			<< current->velocity[2]/C << std::endl;
-		*/
-
-
-		// equation photo: http://goo.gl/J1d2yP
-		for (uint j = 0; j < 3; j++){
-			int dir = 1;
-			if(current->velocity[j] < 0){
-				dir = -1;
-			}
-
-			mpfr::mpreal gamma_factor = my_gamma( initial_velocity[j] );
-
-			mpfr::mpreal mass_initial = current->mass * gamma_factor;
-
-			mpfr::mpreal relativistic_energy = current->mass * pow(C, 2) * (gamma_factor - 1);
-
-			mpfr::mpreal delta_v = final_velocity[j] - initial_velocity[j];
-
-			mpfr::mpreal delta_energy = 1.0f/2.0f * mass_initial * pow(delta_v, 2);
-
-			mpfr::mpreal energy_final = delta_energy + relativistic_energy;
-
-			mpfr::mpreal velocity_final = C * sqrt(
-				1 - 1/pow(
-					energy_final / current->mass / pow(C, 2) + 1
-				, 2)
-			);
-
-			/*
-			std::cout
-				<< "Gamma factor: " << gamma_factor << std::endl
-				<< "Initial Mass: " << mass_initial << std::endl
-				<< "Relative Energy : " << relativistic_energy << std::endl
-				<< "Delta v : " << delta_v << std::endl
-				<< "Delta Energy : " << delta_energy << std::endl
-				<< "Energy Final : " << energy_final << std::endl
-				<< "Velocity Final : " << velocity_final << std::endl
-					<< std::endl;
-			*/
-
-			//mpfr::mpreal energy = 1.0f/2.0f * current->mass * C * C * ( gamma_factor - 1);
-
-			current->velocity[j] = velocity_final;
-		}
-
-		for (uint j = 0; j < 3; j++){
-			current->kinetic_energy[j] = 1.0f/2.0f * current->mass * pow(current->velocity[j], 2) * (my_gamma(current->velocity[j])-1);
-		}
-
-		/*
-		std::cout << "in sqrt" <<
-			1.0f - 1.0f/pow(
-				1.0f/sqrt(
-					1.0f- pow(
-						initial_velocity[0]/C
-					,2)
-				) + abs(final_velocity[0]-initial_velocity[0])/2/C/C
-			, 2) << std::endl;
-
-		std::cout << "in pow in sqrt" <<
-				1.0f/sqrt(
-					1.0f- pow(
-						initial_velocity[0]/C
-					,2)
-				) + (final_velocity[0]-initial_velocity[0])/2/C/C << std::endl;
-
-		std::cout << "in pow in pow in sqrt" <<
-					1.0f- pow(
-						initial_velocity[0]/C
-					,2) << std::endl;
-
-		std::cout << "ratio" <<
-						initial_velocity[0]/C << std::endl;
-
-
 		*/
 
 	}
@@ -471,6 +404,7 @@ void display_graphs() {
 }
 
 void create_photons(){
+	return;
 	for(uint i = 0; i < all_particles.size(); i++){
 		long double num = (std::rand() / (float)RAND_MAX);
 		if( num > 0.9) {
@@ -531,10 +465,10 @@ void compute_user_input() {
 				}
 				break;
 			case GLFW_KEY_UP:
-				newMatrix = rotate(newMatrix, 0, -theta, 0);
+				newMatrix = rotate(newMatrix, 0, theta, 0);
 				break;
 			case GLFW_KEY_DOWN:
-				newMatrix = rotate(newMatrix, 0, theta, 0);
+				newMatrix = rotate(newMatrix, 0, -theta, 0);
 				break;
 			case GLFW_KEY_LEFT:
 				newMatrix = rotate(newMatrix, -theta, 0, 0);
@@ -639,27 +573,6 @@ void load_blob(std::string initial_cond){
 
     all_particles = my_particles;
 }
-
-class gps_position
-{
-	private:
-		friend class boost::serialization::access;
-		template<class Archive>
-		void serialize(Archive & ar, const unsigned int version) {
-			ar & degrees;
-			ar & minutes;
-			ar & seconds;
-		}
-		int minutes;
-		float seconds;
-
-	public:
-		gps_position(){};
-		gps_position(int d, int m, float s) :
-		degrees(d), minutes(m), seconds(s)
-		{}
-		int degrees;
-};
 
 std::string return_match_string(std::string source, std::string expression){
 	std::smatch m;
@@ -1035,20 +948,24 @@ int main(int argc, const char * argv[]){
 
 	// PARTEYYYY
 	// We are working with `digits` long numbers now hehe.
-    const int digits = 500;
+    const int digits = 70;
 	mpfr::mpreal::set_default_prec(mpfr::digits2bits(digits));
 
 	std::cout.precision(digits);
 
+	
     if(!load_filename.empty() && !load_iteration.empty()){
       load_everything(load_filename, load_iteration);
 	  std::cout << "LOADING " << std::endl;
     }else{
 		try{
+			//throw 1; // forget it
+
 			std::cout << "auto load " << std::endl;
 			load_filename = "local/"+current_commit+"/"+initial_cond_hash();
 			load_iteration = "1";
 			load_everything(load_filename, load_iteration);
+			
 		} catch(std::exception e){
 			initialize(all_particles);
 			std::cout << "NOT LOADING " << std::endl;
@@ -1056,6 +973,9 @@ int main(int argc, const char * argv[]){
 			std::cout << load_iteration << std::endl;
 		}
 	}
+	
+	//initialize(all_particles);
+
 
 
 
