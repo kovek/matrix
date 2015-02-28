@@ -47,6 +47,7 @@ std::string load_filename;
 std::string load_iteration;
 void load_everything(std::string filename, std::string iteration);
 std::string current_commit;
+char *errmsg = 0;
 
 
 class x00 {
@@ -618,7 +619,7 @@ uint parent_id = 0;
 
 std::string get_initial_condition_string(std::string filename, std::string iteration){
 	sqlite3 * db;
-	char *errmsg = 0;
+	//char *errmsg = 0;
 	int rc;
 
 	rc = sqlite3_open(filename.c_str(), &db);
@@ -634,6 +635,8 @@ std::string get_initial_condition_string(std::string filename, std::string itera
 		std::cout << "filename: " << filename << std::endl;
         throw std::runtime_error("Couldn't call sql");
 	}
+	sqlite3_free(errmsg);
+	std::cout << "Was able to open database" << std::endl;
 	sqlite3_close(db);
 
 	parent_id = atoi(iteration.c_str());
@@ -672,27 +675,43 @@ void save_information(){
 	system( std::string("echo `ls local/93eb4ce2ea1c00fdcb9e6513a1f9a342d71e4b9d`").c_str() );
 
 	sqlite3 * db;
-	char *errmsg = 0;
 	int rc;
 
 	rc = sqlite3_open(filename.c_str(), &db);
-	if(rc){
+	if(rc != SQLITE_OK){
 		throw std::runtime_error("Couldn't open db" );
 	}
+	sqlite3_errmsg(db);
+	sqlite3_errmsg16(db);
 
 
     std::string blob = get_blob();
 
-    std::string sql = "INSERT INTO timeline (id, parent, data) VALUES (NULL, " +
+    std::string sql = "SELECT * FROM timeline LIMIT 1;";
+    rc = sqlite3_exec(db, sql.c_str(), null_callback, 0, &errmsg);
+    if (rc != SQLITE_OK){
+		sqlite3_errmsg(db);
+		sqlite3_errmsg16(db);
+		std::cout << sql << std::endl;
+		std::cout << "problem: " << *errmsg << std::endl;
+        throw std::runtime_error("Coudn't call sql" );
+    }
+	sqlite3_free(errmsg);
+
+    sql = "INSERT INTO timeline (id, parent, data) VALUES (NULL, " +
       std::to_string(parent_id) + ", \"" +
       blob +
     "\");";
 
     rc = sqlite3_exec(db, sql.c_str(), null_callback, 0, &errmsg);
     if (rc != SQLITE_OK){
+		sqlite3_errmsg(db);
+		sqlite3_errmsg16(db);
 		std::cout << sql << std::endl;
+		std::cout << "problem: " << *errmsg << std::endl;
         throw std::runtime_error("Coudn't call sql" );
     }
+	sqlite3_free(errmsg);
 
     parent_id = sqlite3_last_insert_rowid(db);
 
@@ -716,7 +735,6 @@ int followup_callback(void *NotUsed, int argc, char **argv, char **azColName){
 
 void check_if_followup_exists(std::string filename, std::string iteration){
 	sqlite3 * db;
-	char *errmsg = 0;
 	int rc;
 
 	rc = sqlite3_open(filename.c_str(), &db);
@@ -737,6 +755,7 @@ void check_if_followup_exists(std::string filename, std::string iteration){
 		std::cout << sql << std::endl;
         throw std::runtime_error("Coudn't call sql" );
     }
+	sqlite3_free(errmsg);
 
 	sqlite3_close(db);
 }
@@ -858,7 +877,7 @@ int openglmain(int argc, const char * argv[]){
 
 		timestamp = clock();
 
-		//*
+		/*
 		std::thread compute (compute_new_values);
 
 		std::thread check_cond(check_conditions);
@@ -876,13 +895,13 @@ int openglmain(int argc, const char * argv[]){
 		}
 		//*/
 
-		/*
+		//*
 		compute_new_values();
 		check_conditions();
 		check_energy();
 		compute_user_input();
 		display_graphs();
-		save_everything();
+		save_information();
 		//*/
 
 		/*
@@ -895,7 +914,7 @@ int openglmain(int argc, const char * argv[]){
 		//std::thread draw_thread(&Scene::draw, scene);
 		scene.draw();
 
-		//*
+		/*
 		compute.join();
 		check_cond.join();
 		check_E.join();
@@ -953,7 +972,7 @@ int main(int argc, const char * argv[]){
 
 	std::cout.precision(digits);
 
-	
+
     if(!load_filename.empty() && !load_iteration.empty()){
       load_everything(load_filename, load_iteration);
 	  std::cout << "LOADING " << std::endl;
@@ -965,7 +984,7 @@ int main(int argc, const char * argv[]){
 			load_filename = "local/"+current_commit+"/"+initial_cond_hash();
 			load_iteration = "1";
 			load_everything(load_filename, load_iteration);
-			
+
 		} catch(std::exception e){
 			initialize(all_particles);
 			std::cout << "NOT LOADING " << std::endl;
@@ -973,7 +992,7 @@ int main(int argc, const char * argv[]){
 			std::cout << load_iteration << std::endl;
 		}
 	}
-	
+
 	//initialize(all_particles);
 
 
