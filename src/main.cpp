@@ -876,7 +876,7 @@ int openglmain(int argc, const char * argv[]){
 
 		timestamp = clock();
 
-		/*
+		//*
 		std::thread compute (compute_new_values);
 
 		std::thread check_cond(check_conditions);
@@ -894,7 +894,7 @@ int openglmain(int argc, const char * argv[]){
 		}
 		//*/
 
-		//*
+		/*
 		compute_new_values();
 		check_conditions();
 		check_energy();
@@ -913,7 +913,7 @@ int openglmain(int argc, const char * argv[]){
 		//std::thread draw_thread(&Scene::draw, scene);
 		scene.draw();
 
-		/*
+		//*
 		compute.join();
 		check_cond.join();
 		check_E.join();
