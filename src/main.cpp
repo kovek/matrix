@@ -650,17 +650,17 @@ bool is_file_exist(const char *fileName) {
 }
 
 std::string initial_cond_hash(){
-	FILE * pFile;
-	char contents[100000];
+	std::ifstream t("src/initialize.cpp");
+	std::string str;
 
-	pFile = fopen("src/initialize.cpp", "r");
-	if (pFile == NULL) { perror("Error opening file"); }
-	else {
-		fgets(contents, 100000, pFile);
-	}
+	t.seekg(0, std::ios::end);
+	str.reserve(t.tellg());
+	t.seekg(0, std::ios::beg);
 
-	std::string filecontents = std::string(contents);
-	std::string hash = md5(filecontents);
+	str.assign((std::istreambuf_iterator<char>(t)),
+            std::istreambuf_iterator<char>());
+
+	std::string hash = md5(str);
 	return std::string(hash);
 }
 
@@ -681,8 +681,8 @@ void save_information(){
 	if(rc != SQLITE_OK){
 		throw std::runtime_error("Couldn't open db" );
 	}
-	sqlite3_errmsg(db);
-	sqlite3_errmsg16(db);
+	std::cout << sqlite3_errmsg(db) << std::endl;
+	std::cout << sqlite3_errmsg16(db) << std::endl;
 
 
     std::string blob = get_blob();
@@ -690,8 +690,6 @@ void save_information(){
     std::string sql = "SELECT * FROM timeline LIMIT 1;";
     rc = sqlite3_exec(db, sql.c_str(), null_callback, 0, &errmsg);
     if (rc != SQLITE_OK){
-		sqlite3_errmsg(db);
-		sqlite3_errmsg16(db);
 		std::cout << sql << std::endl;
 		std::cout << "problem: " << *errmsg << std::endl;
         throw std::runtime_error("Coudn't call sql" );
@@ -705,8 +703,9 @@ void save_information(){
 
     rc = sqlite3_exec(db, sql.c_str(), null_callback, 0, &errmsg);
     if (rc != SQLITE_OK){
-		sqlite3_errmsg(db);
-		sqlite3_errmsg16(db);
+		std::cout << sqlite3_errmsg(db) << std::endl;
+		std::cout << sqlite3_errmsg16(db) << std::endl;
+
 		std::cout << sql << std::endl;
 		std::cout << "problem: " << *errmsg << std::endl;
         throw std::runtime_error("Coudn't call sql" );

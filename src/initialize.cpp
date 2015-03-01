@@ -8,6 +8,8 @@ mpfr::mpreal r_not = 5.29 * pow(10,-11);
 mpfr::mpreal v_not = 2.18805743462617 * pow(10,6);
 mpfr::mpreal new_dist = 0.29 * pow(10,-13);
 
+// this is to change the md5
+
 void initialize(std::vector<Particle *> & all_particles){
 	all_particles.push_back(new Proton());
 	all_particles.push_back(new Proton());
