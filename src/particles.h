@@ -46,6 +46,7 @@ struct Particle {
 
 
 	public:
+		std::vector<float> color;
 		virtual ~Particle(){}
 		mpfr::mpreal mass;
 		mpfr::mpreal mass_ev;
@@ -75,7 +76,7 @@ struct Electron: public Particle {
 		}
 	public:
 		Electron(){
-			std::cout << "test!!!" << std::endl;
+			color = std::vector<float>{0.0f, 0.0f, 0.45f, 0.3f};
 			//mass_ev = 0.510998928l; // in MeV/c^2
 			mass = 9.11l*pow(10,-31); // in kg
 			charge = -1.602176565l*pow(10,-19); // in Coulombs
@@ -95,7 +96,7 @@ struct Proton: public Particle {
 		}
 	public:
 		Proton(){
-			std::cout << "test!! this is proton!!" << std::endl;
+			color = std::vector<float>{0.45f, 0.0f, 0.0f, 0.3f};
 			mass_ev = 938.272046; // in MeV/c^2
 			mass = 1.672621777 * pow(10,-27); // in kg
 			charge = 1.602176565*pow(10,-19); // in Coulombs

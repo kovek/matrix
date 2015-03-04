@@ -96,6 +96,7 @@ const GLushort traili[] = {
 };
 
 GLuint offsetUniform;
+GLuint colorUniform;
 GLuint objMatrixUniform;
 GLuint perspectiveMatrixUniform;
 GLuint viewMatrixUniform;
@@ -411,6 +412,7 @@ void Scene::init()
 
     // Uniforms
 	offsetUniform = glGetUniformLocation(_shaderProgram, "offset");
+	colorUniform = glGetUniformLocation(_shaderProgram, "mycolor");
 	objMatrixUniform = glGetUniformLocation(_shaderProgram, "objMatrix");
 
 	perspectiveMatrixUniform = glGetUniformLocation(_shaderProgram, "perspectiveMatrix");
@@ -477,7 +479,8 @@ int z = 0;
 
 void Scene::draw()
 {
-    glClearColor(0.2f, 0.0f, 0.0f, 0.0f);
+    //glClearColor(0.2f, 0.0f, 0.0f, 0.0f);
+    glClearColor(1.0f, 1.0f, 1.0f, 0.0f);
 	glClearDepth(1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
@@ -669,6 +672,9 @@ void Scene::draw()
 		glUniformMatrix4fv(objMatrixUniform, 1, GL_FALSE, floats_array);
 
 		glUniform3f(offsetUniform, (float)current->position[0]*scale_factor*push_off_factor, (float)current->position[1]*scale_factor*push_off_factor, (float)current->position[2]*scale_factor*push_off_factor);
+
+		glUniform4f(colorUniform, current->color[0], current->color[1], current->color[2], current->color[3]);
+
 		glDrawElements(GL_TRIANGLES, sphereSize, GL_UNSIGNED_SHORT, 0);
 		glBindVertexArray(0);
 	}
